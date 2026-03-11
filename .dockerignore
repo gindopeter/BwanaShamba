@@ -1,0 +1,7 @@
+node_modules
+farm.db
+.local
+.cache
+.replit
+.git
+*.zip
