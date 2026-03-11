@@ -18,6 +18,7 @@ A React + Express app for managing farm operations in Tanzania. It tracks crop z
 - `src/lib/api.ts` — Frontend API client with TypeScript interfaces
 - `src/components/Login.tsx` — Email/password login form
 - `src/components/Layout.tsx` — Sidebar layout with user profile (role badge) and logout button
+- `src/components/SettingsPage.tsx` — Settings page: profile edit, password change, admin user management
 - `src/components/LiveScout.tsx` — Camera/image/video upload + AI analysis + live voice (client-side Gemini)
 - `src/components/Chatbot.tsx` — Floating AI assistant (server-side Gemini via `/api/chat`)
 
@@ -30,6 +31,8 @@ A React + Express app for managing farm operations in Tanzania. It tracks crop z
 - `POST /api/auth/users` — Create a new user (admin only)
 - `GET /api/auth/users` — List all users (admin only)
 - `DELETE /api/auth/users/:id` — Delete a user (admin only)
+- `PUT /api/auth/password` — Change own password (protected)
+- `PUT /api/auth/profile` — Update own profile name (protected)
 - `GET /api/zones` — List zones with computed growth data
 - `POST /api/zones` — Create a zone
 - `PATCH /api/zones/:id/yield` — Record harvest yield

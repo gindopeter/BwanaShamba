@@ -171,6 +171,40 @@ async function startServer() {
     res.json({ success: true });
   });
 
+  app.put("/api/auth/password", isAuthenticated, (req, res) => {
+    try {
+      const { current_password, new_password } = req.body;
+      if (!current_password || !new_password) {
+        return res.status(400).json({ message: "Current and new passwords are required" });
+      }
+      if (new_password.length < 6) {
+        return res.status(400).json({ message: "New password must be at least 6 characters" });
+      }
+      const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.session.userId!) as any;
+      if (!user || !bcrypt.compareSync(current_password, user.password_hash)) {
+        return res.status(401).json({ message: "Current password is incorrect" });
+      }
+      const hash = bcrypt.hashSync(new_password, 10);
+      db.prepare('UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(hash, req.session.userId!);
+      res.json({ success: true });
+    } catch {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.put("/api/auth/profile", isAuthenticated, (req, res) => {
+    try {
+      const { first_name, last_name } = req.body;
+      db.prepare('UPDATE users SET first_name = ?, last_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(
+        first_name || null, last_name || null, req.session.userId!
+      );
+      const user = db.prepare('SELECT id, email, first_name, last_name, role, created_at FROM users WHERE id = ?').get(req.session.userId!) as any;
+      res.json(user);
+    } catch {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   // --- Zones API ---
   app.get("/api/zones", isAuthenticated, (req, res) => {
     const zones = db.prepare('SELECT * FROM zones').all();

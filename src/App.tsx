@@ -9,6 +9,7 @@ import LiveScout from './components/LiveScout';
 import FarmMap from './components/FarmMap';
 import ActionQueue from './components/ActionQueue';
 import YieldCard from './components/YieldCard';
+import SettingsPage from './components/SettingsPage';
 import { fetchZones, fetchTasks, runEngineChecks, updateTaskStatus, Zone, Task } from './lib/api';
 import { RefreshCw, Plus, Settings, Droplets, Battery, ArrowDownToLine, Loader2 } from 'lucide-react';
 
@@ -218,11 +219,7 @@ export default function App() {
 
         {/* Settings View */}
         {currentView === 'settings' && (
-          <div className="bg-white p-12 rounded-2xl shadow-sm border border-slate-100 text-center">
-             <Settings className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-             <h3 className="text-xl font-bold text-slate-900">Settings</h3>
-             <p className="text-slate-500 mt-2">Configuration options coming soon.</p>
-          </div>
+          <SettingsPage user={user} onUserUpdate={(u) => setUser(u)} />
         )}
 
         {/* Modals */}
