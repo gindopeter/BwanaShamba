@@ -3,9 +3,12 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import db from "./server/db.ts";
-import { setupAuth, registerAuthRoutes, isAuthenticated } from "./server/replit_integrations/auth/index.ts";
+import session from "express-session";
+import BetterSqlite3SessionStore from "better-sqlite3-session-store";
+import bcrypt from "bcryptjs";
 import path from "path";
 import { fileURLToPath } from "url";
+import type { RequestHandler } from "express";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -49,17 +52,123 @@ ${logDetails || 'No logs'}
 === END FARM DATA ===`;
 }
 
+declare module 'express-session' {
+  interface SessionData {
+    userId: number;
+  }
+}
+
+const isAuthenticated: RequestHandler = (req, res, next) => {
+  if (req.session?.userId) {
+    return next();
+  }
+  res.status(401).json({ message: "Unauthorized" });
+};
+
+const isAdmin: RequestHandler = (req, res, next) => {
+  if (!req.session?.userId) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+  const user = db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId) as any;
+  if (!user || user.role !== 'admin') {
+    return res.status(403).json({ message: "Forbidden: admin access required" });
+  }
+  next();
+};
+
 async function startServer() {
   const app = express();
   const PORT = 5000;
 
   app.use(express.json({ limit: '10mb' }));
 
-  await setupAuth(app);
-  registerAuthRoutes(app);
+  const SqliteStore = BetterSqlite3SessionStore(session);
+  app.set("trust proxy", 1);
+  app.use(session({
+    secret: process.env.SESSION_SECRET || 'mkulima-farm-secret-key-change-in-production',
+    store: new SqliteStore({ client: db, expired: { clear: true, intervalMs: 900000 } }),
+    resave: false,
+    saveUninitialized: false,
+    cookie: { httpOnly: true, secure: true, sameSite: 'lax', maxAge: 7 * 24 * 60 * 60 * 1000 },
+  }));
 
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });
+  });
+
+  app.post("/api/auth/login", (req, res) => {
+    try {
+      const { email, password } = req.body;
+      if (!email || !password) {
+        return res.status(400).json({ message: "Email and password are required" });
+      }
+      const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email) as any;
+      if (!user || !bcrypt.compareSync(password, user.password_hash)) {
+        return res.status(401).json({ message: "Invalid email or password" });
+      }
+      req.session.regenerate((err) => {
+        if (err) {
+          return res.status(500).json({ message: "Session error" });
+        }
+        req.session.userId = user.id;
+        req.session.save((err) => {
+          if (err) {
+            return res.status(500).json({ message: "Session error" });
+          }
+          res.json({ id: user.id, email: user.email, first_name: user.first_name, last_name: user.last_name, role: user.role });
+        });
+      });
+    } catch {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/auth/logout", (req, res) => {
+    req.session.destroy(() => {
+      res.json({ success: true });
+    });
+  });
+
+  app.get("/api/auth/user", isAuthenticated, (req, res) => {
+    const user = db.prepare('SELECT id, email, first_name, last_name, role, created_at FROM users WHERE id = ?').get(req.session.userId!) as any;
+    if (!user) {
+      return res.status(401).json({ message: "User not found" });
+    }
+    res.json(user);
+  });
+
+  app.post("/api/auth/users", isAdmin, (req, res) => {
+    try {
+      const { email, password, first_name, last_name, role } = req.body;
+      if (!email || !password) {
+        return res.status(400).json({ message: "Email and password are required" });
+      }
+      const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+      if (existing) {
+        return res.status(409).json({ message: "A user with this email already exists" });
+      }
+      const hash = bcrypt.hashSync(password, 10);
+      const info = db.prepare('INSERT INTO users (email, password_hash, first_name, last_name, role) VALUES (?, ?, ?, ?, ?)').run(
+        email, hash, first_name || null, last_name || null, role || 'user'
+      );
+      res.json({ id: info.lastInsertRowid, email, first_name, last_name, role: role || 'user' });
+    } catch {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/auth/users", isAdmin, (req, res) => {
+    const users = db.prepare('SELECT id, email, first_name, last_name, role, created_at FROM users').all();
+    res.json(users);
+  });
+
+  app.delete("/api/auth/users/:id", isAdmin, (req, res) => {
+    const { id } = req.params;
+    if (Number(id) === req.session.userId) {
+      return res.status(400).json({ message: "Cannot delete your own account" });
+    }
+    db.prepare('DELETE FROM users WHERE id = ?').run(id);
+    res.json({ success: true });
   });
 
   // --- Zones API ---

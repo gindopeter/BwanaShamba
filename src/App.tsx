@@ -12,12 +12,12 @@ import YieldCard from './components/YieldCard';
 import { fetchZones, fetchTasks, runEngineChecks, updateTaskStatus, Zone, Task } from './lib/api';
 import { RefreshCw, Plus, Settings, Droplets, Battery, ArrowDownToLine, Loader2 } from 'lucide-react';
 
-interface AuthUser {
-  id: string;
-  email: string | null;
+export interface AuthUser {
+  id: number;
+  email: string;
   first_name: string | null;
   last_name: string | null;
-  profile_image_url: string | null;
+  role: string;
 }
 
 export default function App() {
@@ -95,11 +95,16 @@ export default function App() {
   }
 
   if (!user) {
-    return <Login />;
+    return <Login onLogin={(u) => setUser(u)} />;
   }
 
+  const handleLogout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+    setUser(null);
+  };
+
   return (
-    <Layout currentView={currentView} onNavigate={setCurrentView} user={user}>
+    <Layout currentView={currentView} onNavigate={setCurrentView} user={user} onLogout={handleLogout}>
       <div className="space-y-8">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

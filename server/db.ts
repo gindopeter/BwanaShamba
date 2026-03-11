@@ -46,11 +46,12 @@ db.exec(`
   );
 
   CREATE TABLE IF NOT EXISTS users (
-    id TEXT PRIMARY KEY,
-    email TEXT UNIQUE,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
     first_name TEXT,
     last_name TEXT,
-    profile_image_url TEXT,
+    role TEXT DEFAULT 'user' CHECK(role IN ('admin', 'user')),
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
   );
@@ -75,6 +76,41 @@ if (!columnNames.includes('actual_yield_kg')) {
 }
 if (!columnNames.includes('irrigation_status')) {
   db.exec("ALTER TABLE zones ADD COLUMN irrigation_status TEXT DEFAULT 'Off' CHECK(irrigation_status IN ('Off', 'Running'))");
+}
+
+// Migration: ensure users table has correct schema for local auth
+const usersTableInfo = db.prepare("PRAGMA table_info(users)").all() as any[];
+const usersColumns = usersTableInfo.map((c: any) => c.name);
+if (usersColumns.length > 0 && !usersColumns.includes('password_hash')) {
+  db.exec("DROP TABLE IF EXISTS users");
+  db.exec(`
+    CREATE TABLE users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      first_name TEXT,
+      last_name TEXT,
+      role TEXT DEFAULT 'user' CHECK(role IN ('admin', 'user')),
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+}
+
+// Migration: ensure users table has role column
+if (usersColumns.includes('password_hash') && !usersColumns.includes('role')) {
+  db.exec("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user' CHECK(role IN ('admin', 'user'))");
+}
+
+// Seed default admin if no users exist
+import bcrypt from 'bcryptjs';
+const usersCount = db.prepare('SELECT count(*) as count FROM users').get() as { count: number };
+if (usersCount.count === 0) {
+  const hash = bcrypt.hashSync('admin123', 10);
+  db.prepare('INSERT INTO users (email, password_hash, first_name, last_name, role) VALUES (?, ?, ?, ?, ?)').run(
+    'admin@farm.co.tz', hash, 'Farm', 'Admin', 'admin'
+  );
+  console.log('Seeded default admin: admin@farm.co.tz / admin123');
 }
 
 // Seed initial data if empty

@@ -2,11 +2,11 @@ import React, { useState } from 'react';
 import { LayoutDashboard, Sprout, Map as MapIcon, Settings, Menu, Zap, X, LogOut } from 'lucide-react';
 
 interface AuthUser {
-  id: string;
-  email: string | null;
+  id: number;
+  email: string;
   first_name: string | null;
   last_name: string | null;
-  profile_image_url: string | null;
+  role: string;
 }
 
 interface LayoutProps {
@@ -14,9 +14,10 @@ interface LayoutProps {
   currentView: string;
   onNavigate: (view: string) => void;
   user: AuthUser;
+  onLogout: () => void;
 }
 
-export default function Layout({ children, currentView, onNavigate, user }: LayoutProps) {
+export default function Layout({ children, currentView, onNavigate, user, onLogout }: LayoutProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   return (
@@ -82,33 +83,29 @@ export default function Layout({ children, currentView, onNavigate, user }: Layo
 
           <div className="p-4 border-t border-slate-200 space-y-4">
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-              <div className="flex items-center gap-3 mb-3">
-                {user.profile_image_url ? (
-                  <img src={user.profile_image_url} alt="" className="w-8 h-8 rounded-full" />
-                ) : (
-                  <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-sm">
-                    {(user.first_name || user.email || '?')[0].toUpperCase()}
-                  </div>
-                )}
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-sm shrink-0">
+                  {(user.first_name || user.email || '?')[0].toUpperCase()}
+                </div>
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-slate-900 truncate">
-                    {user.first_name ? `${user.first_name}${user.last_name ? ' ' + user.last_name : ''}` : user.email || 'User'}
+                    {user.first_name ? `${user.first_name}${user.last_name ? ' ' + user.last_name : ''}` : user.email}
                   </p>
                   <div className="flex items-center gap-1 text-xs text-indigo-600 font-medium">
                     <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-pulse" />
-                    Online
+                    {user.role === 'admin' ? 'Admin' : 'Online'}
                   </div>
                 </div>
               </div>
             </div>
             
-            <a 
-              href="/api/logout"
+            <button 
+              onClick={onLogout}
               className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-red-600 hover:bg-red-50 hover:text-red-700 border border-transparent font-semibold"
             >
               <LogOut size={20} />
               Log Out
-            </a>
+            </button>
           </div>
         </aside>
 

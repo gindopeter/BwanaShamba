@@ -1,10 +1,47 @@
-import { Zap, ArrowRight, Sprout, Droplets, Shield } from 'lucide-react';
+import React, { useState } from 'react';
+import { Zap, Lock, Mail, ArrowRight } from 'lucide-react';
 
-export default function Login() {
+interface LoginProps {
+  onLogin: (user: any) => void;
+}
+
+export default function Login({ onLogin }: LoginProps) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (!email || !password) {
+      setError('Please enter both email and password');
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.message || 'Login failed');
+        return;
+      }
+      onLogin(data);
+    } catch {
+      setError('Connection error. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 relative overflow-hidden">
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-emerald-500/20 rounded-full blur-[120px] pointer-events-none"></div>
-      <div className="absolute top-1/4 left-1/4 w-[300px] h-[300px] bg-indigo-500/10 rounded-full blur-[100px] pointer-events-none"></div>
 
       <div className="bg-slate-900/80 backdrop-blur-xl w-full max-w-md rounded-3xl shadow-2xl border border-slate-800 overflow-hidden relative z-10">
         <div className="p-10 text-center border-b border-slate-800">
@@ -15,32 +52,66 @@ export default function Login() {
           <p className="text-emerald-400/80 font-medium">Tanzania Farm Operations</p>
         </div>
 
-        <div className="p-10 space-y-6">
-          <div className="space-y-3">
-            <div className="flex items-center gap-3 text-slate-400 text-sm">
-              <Sprout className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span>AI-powered crop monitoring & scouting</span>
+        <div className="p-10">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div>
+              <label className="block text-sm font-bold text-slate-400 mb-2 uppercase tracking-wider">Email Address</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <Mail className="h-5 w-5 text-slate-500" />
+                </div>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="block w-full pl-12 pr-4 py-3.5 bg-slate-950/50 border border-slate-700 rounded-xl text-slate-200 placeholder-slate-600 focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+                  placeholder="admin@farm.co.tz"
+                  autoComplete="email"
+                />
+              </div>
             </div>
-            <div className="flex items-center gap-3 text-slate-400 text-sm">
-              <Droplets className="w-4 h-4 text-blue-400 shrink-0" />
-              <span>Smart irrigation scheduling & automation</span>
-            </div>
-            <div className="flex items-center gap-3 text-slate-400 text-sm">
-              <Shield className="w-4 h-4 text-indigo-400 shrink-0" />
-              <span>Secure access with your Replit account</span>
-            </div>
-          </div>
 
-          <a
-            href="/api/login"
-            className="w-full flex items-center justify-center gap-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 py-4 rounded-xl font-bold text-lg shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_30px_rgba(16,185,129,0.5)] transition-all active:scale-95"
-          >
-            Log In with Replit
-            <ArrowRight className="w-6 h-6" />
-          </a>
+            <div>
+              <label className="block text-sm font-bold text-slate-400 mb-2 uppercase tracking-wider">Password</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <Lock className="h-5 w-5 text-slate-500" />
+                </div>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="block w-full pl-12 pr-4 py-3.5 bg-slate-950/50 border border-slate-700 rounded-xl text-slate-200 placeholder-slate-600 focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+                  placeholder="••••••••"
+                  autoComplete="current-password"
+                />
+              </div>
+            </div>
 
-          <p className="text-xs text-slate-600 text-center">
-            Sign in with Google, GitHub, or email via Replit
+            {error && (
+              <div className="text-red-400 text-sm bg-red-500/10 p-4 rounded-xl border border-red-500/20 font-medium">
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full flex items-center justify-center gap-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 py-4 rounded-xl font-bold text-lg shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_30px_rgba(16,185,129,0.5)] transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed"
+            >
+              {loading ? (
+                <span className="animate-pulse">Authenticating...</span>
+              ) : (
+                <>
+                  Access System
+                  <ArrowRight className="w-6 h-6" />
+                </>
+              )}
+            </button>
+          </form>
+
+          <p className="text-xs text-slate-600 text-center mt-6">
+            Contact your administrator for account access
           </p>
         </div>
       </div>

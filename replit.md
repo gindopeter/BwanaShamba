@@ -8,27 +8,28 @@ A React + Express app for managing farm operations in Tanzania. It tracks crop z
 - **Backend**: Express.js served via `server.ts` using `tsx`
 - **Database**: SQLite via `better-sqlite3` (file: `farm.db`)
 - **AI**: Google Gemini (`gemini-2.5-flash`) via `@google/genai`
-- **Auth**: Replit Auth (OpenID Connect) via passport + express-session (SQLite session store)
+- **Auth**: Admin-managed email/password login with bcryptjs + express-session (SQLite session store)
 
 ## Key Files
 
-- `server.ts` — Express server (port 5000), serves Vite as middleware in dev, handles all API routes
+- `server.ts` — Express server (port 5000), serves Vite as middleware in dev, handles all API routes including auth
 - `server/db.ts` — SQLite database setup, schema (zones, tasks, logs, users, sessions), migrations, and seed data
-- `server/replit_integrations/auth/` — Replit Auth module (OIDC + passport + SQLite sessions)
-- `src/App.tsx` — Root component with Replit Auth, navigation, and data loading
+- `src/App.tsx` — Root component with auth state, navigation, and data loading
 - `src/lib/api.ts` — Frontend API client with TypeScript interfaces
-- `src/components/Login.tsx` — Landing page with "Log In with Replit" button
-- `src/components/Layout.tsx` — Sidebar layout with user profile and logout
+- `src/components/Login.tsx` — Email/password login form
+- `src/components/Layout.tsx` — Sidebar layout with user profile (role badge) and logout button
 - `src/components/LiveScout.tsx` — Camera/image/video upload + AI analysis + live voice (client-side Gemini)
 - `src/components/Chatbot.tsx` — Floating AI assistant (server-side Gemini via `/api/chat`)
 
 ## API Routes
 
 - `GET /api/health` — Health check
-- `GET /api/login` — Replit Auth login flow
-- `GET /api/callback` — OIDC callback
-- `GET /api/logout` — Logout and end session
+- `POST /api/auth/login` — Login with email + password
+- `POST /api/auth/logout` — Logout and destroy session
 - `GET /api/auth/user` — Get authenticated user (protected)
+- `POST /api/auth/users` — Create a new user (admin only)
+- `GET /api/auth/users` — List all users (admin only)
+- `DELETE /api/auth/users/:id` — Delete a user (admin only)
 - `GET /api/zones` — List zones with computed growth data
 - `POST /api/zones` — Create a zone
 - `PATCH /api/zones/:id/yield` — Record harvest yield
@@ -41,6 +42,15 @@ A React + Express app for managing farm operations in Tanzania. It tracks crop z
 - `GET /api/gemini-session` — Get API key for live voice sessions
 - `POST /api/engine/run-checks` — Run irrigation scheduling engine
 
+## Auth System
+
+- Admin-managed accounts (no self-registration)
+- Default admin: `admin@farm.co.tz` / `admin123` (seeded on first run)
+- Passwords hashed with bcryptjs (10 rounds)
+- Sessions stored in SQLite via better-sqlite3-session-store
+- Admin users can create/list/delete other users via `/api/auth/users`
+- User roles: `admin` or `user`
+
 ## Running
 
 ```bash
@@ -49,7 +59,7 @@ npm run dev   # starts tsx server.ts on port 5000
 
 ## Features
 
-- **Auth** — Replit Auth (Google, GitHub, email via Replit OIDC)
+- **Auth** — Admin-managed email/password login (no self-registration)
 - **Dashboard** — Zone cards, task list, weather widget, yield/water stats
 - **Live Scout** — Camera/image/video upload + AI crop analysis + live voice mode
 - **Farm Map** — Visual map of farm zones
@@ -59,5 +69,4 @@ npm run dev   # starts tsx server.ts on port 5000
 ## Environment Variables
 
 - `GEMINI_API_KEY` — Required for AI chat, crop analysis, and live voice features
-- `SESSION_SECRET` — Automatically provided by Replit for session encryption
-- `REPL_ID` — Automatically provided by Replit for OIDC client ID
+- `SESSION_SECRET` — Optional (falls back to built-in default for dev)
