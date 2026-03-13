@@ -12,4 +12,10 @@ ADK_PID=$!
 sleep 3
 
 echo "[docker] Starting Node.js server on port ${PORT:-8080}..."
-exec npx tsx server.ts
+node --import tsx server.ts &
+NODE_PID=$!
+
+trap "kill $ADK_PID $NODE_PID 2>/dev/null; exit" SIGTERM SIGINT
+
+wait -n
+exit $?
