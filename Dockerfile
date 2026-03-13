@@ -10,11 +10,11 @@ COPY . .
 
 RUN npm run build
 
-RUN rm -rf node_modules && npm ci --omit=dev
+RUN npm prune --omit=dev
 
 EXPOSE 8080
 
 ENV NODE_ENV=production
 ENV PORT=8080
 
-CMD ["npx", "tsx", "server.ts"]
+CMD ["node", "--import", "tsx", "server.ts"]
