@@ -163,25 +163,13 @@ export default function Login({ onLogin }: LoginProps) {
         <div className="flex-1 h-px bg-[#002c11]/10"></div>
       </div>
 
-      <div className="bg-white rounded-xl p-4 border border-[#002c11]/5">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-[#fc8e44]/10 flex items-center justify-center shrink-0">
-            <span className="text-base">🌾</span>
-          </div>
-          <div>
-            <p className="text-xs font-bold text-[#002c11]">Malivundo Farm</p>
-            <p className="text-[10px] text-[#5d6c7b]">Pwani Region, Tanzania</p>
-          </div>
-          <div className="ml-auto flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-[#035925] animate-pulse"></span>
-            <span className="text-[10px] font-bold text-[#035925]">Online</span>
-          </div>
-        </div>
-      </div>
-
-      <p className="text-[10px] text-[#5d6c7b]/50 text-center mt-6">
-        Contact your administrator for access
-      </p>
+      <a
+        href="mailto:gindopeter@gmail.com?subject=BwanaShamba%20Demo%20Request&body=Hello%2C%0A%0AI%20would%20like%20to%20request%20a%20demo%20of%20BwanaShamba.%0A%0AThank%20you."
+        className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-[#fc8e44] hover:bg-[#e07d3a] text-white font-bold text-sm transition-colors"
+      >
+        Request a Demo
+        <span className="text-base">→</span>
+      </a>
     </div>
   );
 
