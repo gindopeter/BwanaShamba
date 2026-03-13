@@ -525,7 +525,7 @@ export default function LiveScout() {
               const base64Image = canvasRef.current.toDataURL('image/jpeg', 0.5).split(',')[1];
               try {
                 resolvedSession.sendRealtimeInput({ media: { data: base64Image, mimeType: 'image/jpeg' } });
-                console.log('[LiveVoice] Camera frame sent');
+                console.log(`[LiveVoice] Camera frame sent (${videoRef.current.videoWidth}x${videoRef.current.videoHeight})`);
               } catch (err) {
                 console.error('[LiveVoice] Error sending frame:', err);
               }
@@ -744,13 +744,15 @@ export default function LiveScout() {
       </div>
 
       <div className="flex-1 flex flex-col min-w-0">
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted
-          style={{ position: 'fixed', width: 1, height: 1, opacity: 0, pointerEvents: 'none', top: -9999, left: -9999 }}
-        />
+        {!isCameraActive && (
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            style={{ position: 'fixed', width: 1, height: 1, opacity: 0, pointerEvents: 'none', top: -9999, left: -9999 }}
+          />
+        )}
 
         <div className="flex items-center gap-2 px-4 py-2 lg:hidden">
           <button
@@ -764,7 +766,7 @@ export default function LiveScout() {
 
         {isCameraActive && (
           <div className="relative w-full h-40 bg-black rounded-xl overflow-hidden mb-4 mx-4 shrink-0" style={{ width: 'calc(100% - 2rem)' }}>
-            <video autoPlay playsInline muted className="w-full h-full object-cover" ref={(el) => { if (el && mediaStream) el.srcObject = mediaStream; }} />
+            <video autoPlay playsInline muted className="w-full h-full object-cover" ref={(el) => { videoRef.current = el; if (el && mediaStream) el.srcObject = mediaStream; }} />
             <div className="absolute top-3 right-3 flex items-center gap-1.5">
               <button
                 onClick={flipCamera}
