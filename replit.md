@@ -38,11 +38,12 @@ If the ADK service is unavailable, the Node.js server falls back to direct Gemin
 
 - `server.ts` — Express server (port 5000), serves Vite as middleware in dev, handles all API routes including auth, proxies chat to ADK service
 - `server/db.ts` — SQLite database setup, schema (zones, tasks, logs, users, sessions), migrations, and seed data
-- `src/App.tsx` — Root component with auth state, navigation, and data loading
+- `src/App.tsx` — Root component with auth state, navigation, data loading, and detail views (tasks, zones, weather forecast, water usage with per-zone/whole-farm reports)
+- `src/components/ActionQueue.tsx` — "Upcoming Task" widget: shows 15min before scheduled time, countdown at 10min, cancel/override button
 - `src/lib/api.ts` — Frontend API client with TypeScript interfaces
 - `src/components/Login.tsx` — Email/password login form
 - `src/components/Layout.tsx` — Sidebar layout with user profile (role badge) and logout button
-- `src/components/SettingsPage.tsx` — Settings page: profile edit, password change, admin user management
+- `src/components/SettingsPage.tsx` — Settings page: profile edit, password change, admin user management (edit/deactivate/reactivate/soft-delete)
 - `src/components/LiveScout.tsx` — AI Assistant: minimalist Claude-like chat + image/video upload + camera + live voice (client-side Gemini). Features: auto language switching (EN/SW), voice interruption (VAD-based), persistent conversation history with sidebar
 - `src/components/Chatbot.tsx` — Floating AI assistant (server-side Gemini via `/api/chat`)
 
@@ -53,8 +54,10 @@ If the ADK service is unavailable, the Node.js server falls back to direct Gemin
 - `POST /api/auth/logout` — Logout and destroy session
 - `GET /api/auth/user` — Get authenticated user (protected)
 - `POST /api/auth/users` — Create a new user (admin only)
-- `GET /api/auth/users` — List all users (admin only)
-- `DELETE /api/auth/users/:id` — Delete a user (admin only)
+- `GET /api/auth/users` — List all users with is_active status (admin only)
+- `PUT /api/auth/users/:id` — Edit user details (admin only)
+- `PUT /api/auth/users/:id/status` — Activate/deactivate user (admin only)
+- `DELETE /api/auth/users/:id` — Soft-delete user (sets is_active=0, appends _deleted_ to email; admin only)
 - `PUT /api/auth/password` — Change own password (protected)
 - `PUT /api/auth/profile` — Update own profile name (protected)
 - `GET /api/zones` — List zones with computed growth data

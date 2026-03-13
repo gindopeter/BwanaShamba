@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Lock, User, Shield, Trash2, Plus, Check, AlertCircle, Eye, EyeOff, UserPlus } from 'lucide-react';
+import { Lock, User, Shield, Trash2, Plus, Check, AlertCircle, Eye, EyeOff, UserPlus, Edit2, X, UserX, UserCheck } from 'lucide-react';
 import type { AuthUser } from '../App';
 
 interface SettingsPageProps {
@@ -243,6 +243,7 @@ function UsersSection({ currentUserId }: { currentUserId: number }) {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [editingUser, setEditingUser] = useState<any>(null);
   const [newEmail, setNewEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newFirstName, setNewFirstName] = useState('');
@@ -261,29 +262,54 @@ function UsersSection({ currentUserId }: { currentUserId: number }) {
 
   useEffect(() => { loadUsers(); }, []);
 
+  const resetForm = () => {
+    setNewEmail(''); setNewPassword(''); setNewFirstName(''); setNewLastName(''); setNewRole('user');
+    setEditingUser(null); setShowForm(false);
+  };
+
+  const startEdit = (u: any) => {
+    setEditingUser(u);
+    setNewEmail(u.email);
+    setNewFirstName(u.first_name || '');
+    setNewLastName(u.last_name || '');
+    setNewRole(u.role);
+    setNewPassword('');
+    setShowForm(true);
+  };
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setMessage(null);
-    if (!newEmail || !newPassword) {
+    if (!newEmail || (!editingUser && !newPassword)) {
       setMessage({ type: 'error', text: 'Email and password are required' });
       return;
     }
     setCreating(true);
     try {
-      const res = await fetch('/api/auth/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ email: newEmail, password: newPassword, first_name: newFirstName, last_name: newLastName, role: newRole }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setMessage({ type: 'error', text: data.message || 'Failed to create user' });
-        return;
+      if (editingUser) {
+        const body: any = { email: newEmail, first_name: newFirstName, last_name: newLastName, role: newRole };
+        if (newPassword) body.password = newPassword;
+        const res = await fetch(`/api/auth/users/${editingUser.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) { setMessage({ type: 'error', text: data.message || 'Failed to update user' }); return; }
+        setMessage({ type: 'success', text: 'User updated successfully' });
+      } else {
+        const res = await fetch('/api/auth/users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ email: newEmail, password: newPassword, first_name: newFirstName, last_name: newLastName, role: newRole }),
+        });
+        const data = await res.json();
+        if (!res.ok) { setMessage({ type: 'error', text: data.message || 'Failed to create user' }); return; }
+        setMessage({ type: 'success', text: 'User created successfully' });
       }
-      setShowForm(false);
-      setNewEmail(''); setNewPassword(''); setNewFirstName(''); setNewLastName(''); setNewRole('user');
-      setMessage({ type: 'success', text: 'User created successfully' });
+      resetForm();
       loadUsers();
     } catch {
       setMessage({ type: 'error', text: 'Connection error' });
@@ -292,12 +318,42 @@ function UsersSection({ currentUserId }: { currentUserId: number }) {
     }
   };
 
+  const handleToggleActive = async (id: number, currentlyActive: boolean) => {
+    const action = currentlyActive ? 'deactivate' : 'reactivate';
+    if (!confirm(`Are you sure you want to ${action} this user?`)) return;
+    try {
+      const res = await fetch(`/api/auth/users/${id}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ is_active: !currentlyActive }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setMessage({ type: 'error', text: data.message || `Failed to ${action} user` });
+        return;
+      }
+      setMessage({ type: 'success', text: `User ${action}d successfully` });
+      loadUsers();
+    } catch {
+      setMessage({ type: 'error', text: 'Connection error' });
+    }
+  };
+
   const handleDelete = async (id: number, email: string) => {
-    if (!confirm(`Remove user ${email}? This cannot be undone.`)) return;
+    if (!confirm(`Permanently remove ${email}? Their farm data will be preserved, but they will no longer be able to log in.`)) return;
     try {
       const res = await fetch(`/api/auth/users/${id}`, { method: 'DELETE', credentials: 'include' });
-      if (res.ok) loadUsers();
-    } catch { /* ignore */ }
+      const data = await res.json();
+      if (!res.ok) {
+        setMessage({ type: 'error', text: data.message || 'Failed to remove user' });
+        return;
+      }
+      setMessage({ type: 'success', text: 'User removed successfully' });
+      loadUsers();
+    } catch {
+      setMessage({ type: 'error', text: 'Connection error' });
+    }
   };
 
   return (
@@ -308,22 +364,23 @@ function UsersSection({ currentUserId }: { currentUserId: number }) {
           <p className="text-sm text-[#5d6c7b]">Create and manage user accounts.</p>
         </div>
         <button
-          onClick={() => setShowForm(!showForm)}
+          onClick={() => { if (showForm) resetForm(); else setShowForm(true); }}
           className="flex items-center gap-2 bg-[#035925] hover:bg-[#002c11] text-white px-4 py-2.5 rounded-xl font-medium shadow-sm transition-all active:scale-95 text-sm"
         >
-          {showForm ? 'Cancel' : <><UserPlus size={16} /> Add User</>}
+          {showForm ? <><X size={16} /> Cancel</> : <><UserPlus size={16} /> Add User</>}
         </button>
       </div>
 
       {showForm && (
         <form onSubmit={handleCreate} className="bg-[#f9f6f1] border border-[#002c11]/10 rounded-xl p-5 mb-6 space-y-4">
+          <p className="text-sm font-bold text-[#002c11]">{editingUser ? 'Edit User' : 'New User'}</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-semibold text-[#002c11]/80 mb-1">Email *</label>
               <input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} className="w-full px-3 py-2.5 border border-[#002c11]/10 rounded-lg text-[#002c11] text-sm focus:ring-2 focus:ring-[#035925]/30 focus:border-[#035925]" placeholder="user@farm.co.tz" />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-[#002c11]/80 mb-1">Password *</label>
+              <label className="block text-sm font-semibold text-[#002c11]/80 mb-1">{editingUser ? 'New Password (leave blank to keep)' : 'Password *'}</label>
               <input type="text" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="w-full px-3 py-2.5 border border-[#002c11]/10 rounded-lg text-[#002c11] text-sm focus:ring-2 focus:ring-[#035925]/30 focus:border-[#035925]" placeholder="Min 6 characters" />
             </div>
             <div>
@@ -343,7 +400,7 @@ function UsersSection({ currentUserId }: { currentUserId: number }) {
             </select>
           </div>
           <button type="submit" disabled={creating} className="flex items-center gap-2 bg-[#035925] hover:bg-[#002c11] text-white px-5 py-2.5 rounded-lg font-medium text-sm transition-all active:scale-95 disabled:opacity-70">
-            {creating ? 'Creating...' : <><Plus size={16} /> Create User</>}
+            {creating ? 'Saving...' : editingUser ? <><Check size={16} /> Save Changes</> : <><Plus size={16} /> Create User</>}
           </button>
         </form>
       )}
@@ -354,31 +411,51 @@ function UsersSection({ currentUserId }: { currentUserId: number }) {
         <p className="text-sm text-[#5d6c7b] py-4 text-center">Loading users...</p>
       ) : (
         <div className="divide-y divide-slate-100">
-          {users.map((u) => (
-            <div key={u.id} className="flex items-center justify-between py-4 first:pt-0 last:pb-0">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-[#035925]/10 flex items-center justify-center text-[#035925] font-bold text-sm shrink-0">
-                  {(u.first_name || u.email)[0].toUpperCase()}
+          {users.filter(u => !u.email?.includes('_deleted_')).map((u) => {
+            const isActive = u.is_active !== 0;
+            return (
+              <div key={u.id} className={`flex items-center justify-between py-4 first:pt-0 last:pb-0 ${!isActive ? 'opacity-50' : ''}`}>
+                <div className="flex items-center gap-3">
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${isActive ? 'bg-[#035925]/10 text-[#035925]' : 'bg-gray-200 text-gray-500'}`}>
+                    {(u.first_name || u.email)[0].toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-[#002c11]">
+                      {u.first_name ? `${u.first_name} ${u.last_name || ''}`.trim() : u.email}
+                    </p>
+                    <p className="text-xs text-[#5d6c7b]">{u.email}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm font-semibold text-[#002c11]">
-                    {u.first_name ? `${u.first_name} ${u.last_name || ''}`.trim() : u.email}
-                  </p>
-                  <p className="text-xs text-[#5d6c7b]">{u.email}</p>
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${u.role === 'admin' ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-[#002c11]/5 text-[#5d6c7b] border border-[#002c11]/10'}`}>
+                    {u.role}
+                  </span>
+                  {!isActive && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200">
+                      Inactive
+                    </span>
+                  )}
+                  {u.id !== currentUserId && (
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => startEdit(u)} className="p-2 text-[#5d6c7b]/60 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="Edit user">
+                        <Edit2 size={15} />
+                      </button>
+                      <button
+                        onClick={() => handleToggleActive(u.id, isActive)}
+                        className={`p-2 rounded-lg transition-all ${isActive ? 'text-[#5d6c7b]/60 hover:text-amber-600 hover:bg-amber-50' : 'text-[#5d6c7b]/60 hover:text-green-600 hover:bg-green-50'}`}
+                        title={isActive ? 'Deactivate user' : 'Reactivate user'}
+                      >
+                        {isActive ? <UserX size={15} /> : <UserCheck size={15} />}
+                      </button>
+                      <button onClick={() => handleDelete(u.id, u.email)} className="p-2 text-[#5d6c7b]/60 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Remove user">
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${u.role === 'admin' ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-[#002c11]/5 text-[#5d6c7b] border border-[#002c11]/10'}`}>
-                  {u.role}
-                </span>
-                {u.id !== currentUserId && (
-                  <button onClick={() => handleDelete(u.id, u.email)} className="p-2 text-[#5d6c7b]/60 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Remove user">
-                    <Trash2 size={16} />
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -388,7 +465,7 @@ function UsersSection({ currentUserId }: { currentUserId: number }) {
 function StatusMessage({ message }: { message: { type: 'success' | 'error'; text: string } | null }) {
   if (!message) return null;
   return (
-    <div className={`flex items-center gap-2 text-sm p-3 rounded-xl ${
+    <div className={`flex items-center gap-2 text-sm p-3 rounded-xl mb-4 ${
       message.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'
     }`}>
       {message.type === 'success' ? <Check size={16} /> : <AlertCircle size={16} />}

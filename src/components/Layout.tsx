@@ -31,12 +31,12 @@ export default function Layout({ children, currentView, onNavigate, user, onLogo
     <div className="min-h-screen bg-[#f9f6f1] flex" style={{ fontFamily: "'Lato', system-ui, sans-serif" }}>
       {/* Mobile Header */}
       <header className="lg:hidden fixed top-0 left-0 right-0 bg-[#002c11] p-4 flex items-center justify-between z-30">
-        <div className="flex items-center gap-2.5">
+        <button onClick={() => onNavigate('dashboard')} className="flex items-center gap-2.5">
           <div className="w-8 h-8 bg-[#035925] rounded-lg flex items-center justify-center">
             <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
           </div>
           <span className="text-sm font-bold text-white" style={{ fontFamily: "'Instrument Sans', sans-serif" }}>BwanaShamba</span>
-        </div>
+        </button>
         <button
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           className="p-2 text-white/60 hover:text-white rounded-lg transition-colors"
@@ -55,7 +55,7 @@ export default function Layout({ children, currentView, onNavigate, user, onLogo
 
       {/* Sidebar */}
       <aside className={`fixed inset-y-0 left-0 z-50 transform ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} lg:relative lg:translate-x-0 transition duration-200 ease-in-out w-[240px] bg-[#002c11] flex flex-col shrink-0`}>
-        <div className="p-5 flex items-center gap-3 border-b border-white/[0.08]">
+        <button onClick={() => { onNavigate('dashboard'); setIsMobileMenuOpen(false); }} className="w-full p-5 flex items-center gap-3 border-b border-white/[0.08] text-left hover:bg-white/[0.04] transition-colors">
           <div className="w-9 h-9 bg-[#035925] rounded-lg flex items-center justify-center">
             <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
           </div>
@@ -63,7 +63,7 @@ export default function Layout({ children, currentView, onNavigate, user, onLogo
             <span className="text-sm font-bold text-white block" style={{ fontFamily: "'Instrument Sans', sans-serif" }}>BwanaShamba</span>
             <span className="text-[9px] text-[#fc8e44] font-bold tracking-[0.15em] uppercase">Dashboard</span>
           </div>
-        </div>
+        </button>
 
         <nav className="flex-1 px-3 pt-4 space-y-0.5">
           {navItems.map((item) => {

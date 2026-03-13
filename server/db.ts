@@ -122,6 +122,11 @@ if (usersColumns.includes('password_hash') && !usersColumns.includes('role')) {
   db.exec("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user' CHECK(role IN ('admin', 'user'))");
 }
 
+// Migration: add is_active column for soft-delete/deactivation
+if (usersColumns.includes('password_hash') && !usersColumns.includes('is_active')) {
+  db.exec("ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1");
+}
+
 // Seed default admin if no users exist
 import bcrypt from 'bcryptjs';
 const usersCount = db.prepare('SELECT count(*) as count FROM users').get() as { count: number };

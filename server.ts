@@ -59,6 +59,11 @@ declare module 'express-session' {
 
 const isAuthenticated: RequestHandler = (req, res, next) => {
   if (req.session?.userId) {
+    const user = db.prepare('SELECT is_active FROM users WHERE id = ?').get(req.session.userId) as any;
+    if (!user || user.is_active === 0) {
+      req.session.destroy(() => {});
+      return res.status(401).json({ message: "Account deactivated" });
+    }
     return next();
   }
   res.status(401).json({ message: "Unauthorized" });
@@ -106,6 +111,9 @@ async function startServer() {
       const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email) as any;
       if (!user || !bcrypt.compareSync(password, user.password_hash)) {
         return res.status(401).json({ message: "Invalid email or password" });
+      }
+      if (user.is_active === 0) {
+        return res.status(403).json({ message: "Account has been deactivated. Contact your administrator." });
       }
       req.session.regenerate((err) => {
         if (err) {
@@ -159,8 +167,49 @@ async function startServer() {
   });
 
   app.get("/api/auth/users", isAdmin, (req, res) => {
-    const users = db.prepare('SELECT id, email, first_name, last_name, role, created_at FROM users').all();
+    const users = db.prepare('SELECT id, email, first_name, last_name, role, is_active, created_at FROM users').all();
     res.json(users);
+  });
+
+  app.put("/api/auth/users/:id", isAdmin, (req, res) => {
+    try {
+      const { id } = req.params;
+      const { email, first_name, last_name, role, password } = req.body;
+      const user = db.prepare('SELECT * FROM users WHERE id = ?').get(Number(id)) as any;
+      if (!user) return res.status(404).json({ message: "User not found" });
+      if (email && email !== user.email) {
+        const existing = db.prepare('SELECT id FROM users WHERE email = ? AND id != ?').get(email, Number(id));
+        if (existing) return res.status(409).json({ message: "Email already in use" });
+      }
+      const updates: string[] = [];
+      const values: any[] = [];
+      if (email) { updates.push('email = ?'); values.push(email); }
+      if (first_name !== undefined) { updates.push('first_name = ?'); values.push(first_name || null); }
+      if (last_name !== undefined) { updates.push('last_name = ?'); values.push(last_name || null); }
+      if (role) { updates.push('role = ?'); values.push(role); }
+      if (password && password.length >= 6) { updates.push('password_hash = ?'); values.push(bcrypt.hashSync(password, 10)); }
+      if (updates.length > 0) {
+        updates.push('updated_at = CURRENT_TIMESTAMP');
+        values.push(Number(id));
+        db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+      }
+      const updated = db.prepare('SELECT id, email, first_name, last_name, role, is_active, created_at FROM users WHERE id = ?').get(Number(id));
+      res.json(updated);
+    } catch {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.put("/api/auth/users/:id/status", isAdmin, (req, res) => {
+    const { id } = req.params;
+    const { is_active } = req.body;
+    if (Number(id) === req.session.userId) {
+      return res.status(400).json({ message: "Cannot deactivate your own account" });
+    }
+    const user = db.prepare('SELECT id FROM users WHERE id = ?').get(Number(id));
+    if (!user) return res.status(404).json({ message: "User not found" });
+    db.prepare('UPDATE users SET is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(is_active ? 1 : 0, Number(id));
+    res.json({ success: true });
   });
 
   app.delete("/api/auth/users/:id", isAdmin, (req, res) => {
@@ -168,7 +217,9 @@ async function startServer() {
     if (Number(id) === req.session.userId) {
       return res.status(400).json({ message: "Cannot delete your own account" });
     }
-    db.prepare('DELETE FROM users WHERE id = ?').run(id);
+    const user = db.prepare('SELECT id FROM users WHERE id = ?').get(Number(id));
+    if (!user) return res.status(404).json({ message: "User not found" });
+    db.prepare('UPDATE users SET is_active = 0, email = email || \'_deleted_\' || id, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(Number(id));
     res.json({ success: true });
   });
 
