@@ -197,6 +197,8 @@ export default function LiveScout() {
     }
   };
 
+  const pendingAutoSendRef = useRef<string | null>(null);
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -205,7 +207,11 @@ export default function LiveScout() {
       setUploadedMediaType(isVideo ? 'video' : 'image');
       const reader = new FileReader();
       reader.onloadend = () => {
-        setUploadedMedia(reader.result as string);
+        const dataUrl = reader.result as string;
+        setUploadedMedia(dataUrl);
+        if (!isVideo) {
+          pendingAutoSendRef.current = dataUrl;
+        }
       };
       reader.readAsDataURL(file);
     }
@@ -226,24 +232,59 @@ export default function LiveScout() {
     return undefined;
   }, []);
 
+  const captureFrameFromCamera = async (): Promise<string | undefined> => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return undefined;
+
+    if (video.videoWidth > 0) {
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return undefined;
+      canvas.width = 640;
+      canvas.height = Math.round((video.videoHeight / video.videoWidth) * 640);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      return canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
+    }
+
+    return new Promise((resolve) => {
+      const check = () => {
+        if (video.videoWidth > 0) {
+          const ctx = canvas.getContext('2d');
+          if (!ctx) { resolve(undefined); return; }
+          canvas.width = 640;
+          canvas.height = Math.round((video.videoHeight / video.videoWidth) * 640);
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL('image/jpeg', 0.8).split(',')[1]);
+        } else {
+          resolve(undefined);
+        }
+      };
+      video.addEventListener('loadeddata', check, { once: true });
+      setTimeout(() => resolve(undefined), 2000);
+    });
+  };
+
   const handleSendText = async (overrideText?: string) => {
     const textToSend = overrideText || inputText;
 
     let imageData = uploadedMedia ? uploadedMedia.split(',')[1] : undefined;
     let mimeType = 'image/jpeg';
 
+    if (uploadedMedia && uploadedMediaType === 'image') {
+      const match = uploadedMedia.match(/^data:([^;]+);/);
+      if (match) mimeType = match[1];
+    }
+
     if (uploadedMedia && uploadedMediaType === 'video') {
       imageData = extractVideoFrame();
       mimeType = 'image/jpeg';
     }
 
-    if (isCameraActive && videoRef.current && canvasRef.current && !imageData) {
-      const ctx = canvasRef.current.getContext('2d');
-      if (ctx && videoRef.current.videoWidth > 0) {
-        canvasRef.current.width = 640;
-        canvasRef.current.height = 480;
-        ctx.drawImage(videoRef.current, 0, 0, 640, 480);
-        imageData = canvasRef.current.toDataURL('image/jpeg', 0.8).split(',')[1];
+    if (isCameraActive && !imageData) {
+      const capturedFrame = await captureFrameFromCamera();
+      if (capturedFrame) {
+        imageData = capturedFrame;
+        mimeType = 'image/jpeg';
       }
     }
 
@@ -357,6 +398,16 @@ export default function LiveScout() {
       setIsProcessing(false);
     }
   };
+
+  const handleSendTextRef = useRef(handleSendText);
+  handleSendTextRef.current = handleSendText;
+
+  useEffect(() => {
+    if (pendingAutoSendRef.current && uploadedMedia === pendingAutoSendRef.current && !isProcessing) {
+      pendingAutoSendRef.current = null;
+      handleSendTextRef.current('Analyze this image and tell me what you see. Check for pests, diseases, or any issues.');
+    }
+  }, [uploadedMedia, isProcessing]);
 
   const startLiveVoice = async () => {
     try {
@@ -677,6 +728,14 @@ export default function LiveScout() {
               <div className="absolute top-3 left-3 bg-red-500/80 text-white px-3 py-1 rounded-full text-[10px] font-bold flex items-center gap-1.5 animate-pulse backdrop-blur-sm">
                 <Mic className="w-3 h-3" /> LIVE
               </div>
+            )}
+            {!isLiveVoice && !isProcessing && (
+              <button
+                onClick={() => handleSendText('Analyze this image from my camera. Check for pests, diseases, or any crop issues.')}
+                className="absolute bottom-3 left-1/2 -translate-x-1/2 px-4 py-2 bg-[#035925]/90 hover:bg-[#035925] text-white text-xs font-semibold rounded-lg backdrop-blur-sm transition-colors flex items-center gap-1.5"
+              >
+                <Camera className="w-3.5 h-3.5" /> Capture & Analyze
+              </button>
             )}
           </div>
         )}
