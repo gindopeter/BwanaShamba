@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Camera, Upload, Loader2, Mic, Video, Square, MessageSquare, Volume2, Send, Image as ImageIcon } from 'lucide-react';
+import { Camera, Upload, Loader2, Mic, Square, Send, ArrowUp, Paperclip, X, Volume2, Image as ImageIcon } from 'lucide-react';
 import { GoogleGenAI, Modality } from '@google/genai';
 import ReactMarkdown from 'react-markdown';
 
@@ -40,9 +40,7 @@ export default function LiveScout() {
   const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
   const [uploadedMedia, setUploadedMedia] = useState<string | null>(null);
   const [uploadedMediaType, setUploadedMediaType] = useState<'image' | 'video'>('image');
-  const [messages, setMessages] = useState<{role: string, text: string, image?: string}[]>([
-    { role: 'ai', text: 'Jambo! I am Mkulima AI. Upload an image or video, turn on your camera, or start a Live Voice session to begin.' }
-  ]);
+  const [messages, setMessages] = useState<{role: string, text: string, image?: string}[]>([]);
   const [inputText, setInputText] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -52,6 +50,7 @@ export default function LiveScout() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const audioStreamRef = useRef<MediaStream | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const aiRef = useRef<any>(null);
   const sessionRef = useRef<any>(null);
@@ -83,6 +82,13 @@ export default function LiveScout() {
       if (mediaStreamRef.current) { mediaStreamRef.current.getTracks().forEach(t => t.stop()); }
     };
   }, []);
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 200) + 'px';
+    }
+  }, [inputText]);
 
   const toggleCamera = async () => {
     if (isCameraActive) {
@@ -231,8 +237,7 @@ export default function LiveScout() {
         },
         callbacks: {
           onopen: () => {
-            console.log("Live API Connected");
-            setMessages(prev => [...prev, { role: 'system', text: 'Live Voice Session Started' }]);
+            setMessages(prev => [...prev, { role: 'system', text: 'Live voice session started. Speak to your AI assistant.' }]);
 
             processor.onaudioprocess = (e) => {
               const inputData = e.inputBuffer.getChannelData(0);
@@ -279,7 +284,6 @@ export default function LiveScout() {
             }
           },
           onclose: () => {
-            console.log("Live API Closed");
             stopLiveVoice();
           }
         }
@@ -311,124 +315,203 @@ export default function LiveScout() {
       sessionRef.current.then((session: any) => session.close()).catch(() => {});
       sessionRef.current = null;
     }
-    setMessages(prev => [...prev, { role: 'system', text: 'Live Voice Session Ended' }]);
+    setMessages(prev => [...prev, { role: 'system', text: 'Live voice session ended.' }]);
   };
 
+  const hasMessages = messages.length > 0;
+
   return (
-    <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-10rem)] max-h-[800px]">
-      <div className="w-full lg:w-1/2 bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden flex flex-col shadow-sm">
-         <div className="p-4 border-b border-slate-800 bg-slate-950 flex justify-between items-center">
-            <h3 className="font-bold text-slate-100 flex items-center gap-2">
-              <Video className="w-5 h-5 text-[#035925]"/>
-              Vision Feed
-            </h3>
-            <div className="flex gap-2">
-               <button
-                 onClick={toggleCamera}
-                 className={`px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${isCameraActive ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700'}`}
-               >
-                 {isCameraActive ? <Square className="w-4 h-4"/> : <Camera className="w-4 h-4"/>}
-                 {isCameraActive ? 'STOP CAM' : 'CAMERA'}
-               </button>
-               <button
-                 onClick={() => fileInputRef.current?.click()}
-                 className="px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-2 bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700 transition-all"
-               >
-                 <Upload className="w-4 h-4"/>
-                 UPLOAD
-               </button>
-               <input type="file" ref={fileInputRef} className="hidden" accept="image/*,video/*" onChange={handleFileUpload} />
+    <div className="flex flex-col h-[calc(100vh-5rem)] max-h-[900px]">
+      {/* Hidden video element for camera capture when not showing preview */}
+      <video ref={videoRef} autoPlay playsInline muted className={isCameraActive ? 'hidden' : 'hidden'} style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }} />
+
+      {/* Camera preview strip - only when camera is active */}
+      {isCameraActive && (
+        <div className="relative w-full h-40 bg-black rounded-xl overflow-hidden mb-4 shrink-0">
+          <video autoPlay playsInline muted className="w-full h-full object-cover" ref={(el) => { if (el && mediaStream) el.srcObject = mediaStream; }} />
+          <button
+            onClick={toggleCamera}
+            className="absolute top-3 right-3 p-1.5 bg-black/50 hover:bg-black/70 text-white rounded-lg backdrop-blur-sm transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+          {isLiveVoice && (
+            <div className="absolute top-3 left-3 bg-red-500/80 text-white px-3 py-1 rounded-full text-[10px] font-bold flex items-center gap-1.5 animate-pulse backdrop-blur-sm">
+              <Mic className="w-3 h-3" /> LIVE
             </div>
-         </div>
+          )}
+        </div>
+      )}
 
-         <div className="flex-1 relative bg-black flex items-center justify-center overflow-hidden">
-            {isCameraActive ? (
-              <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
-            ) : uploadedMedia && uploadedMediaType === 'video' ? (
-              <video ref={uploadedVideoRef} src={uploadedMedia} controls className="w-full h-full object-contain" />
-            ) : uploadedMedia && uploadedMediaType === 'image' ? (
-              <img src={uploadedMedia} className="w-full h-full object-contain" />
-            ) : (
-              <div className="text-center text-[#5d6c7b]">
-                <Camera className="w-16 h-16 mx-auto mb-4 opacity-20" />
-                <p className="font-medium">Start camera or upload an image/video to begin</p>
-              </div>
-            )}
+      {/* Uploaded media preview */}
+      {uploadedMedia && !isCameraActive && (
+        <div className="relative w-full max-h-48 bg-black rounded-xl overflow-hidden mb-4 shrink-0">
+          {uploadedMediaType === 'video' ? (
+            <video ref={uploadedVideoRef} src={uploadedMedia} controls className="w-full max-h-48 object-contain" />
+          ) : (
+            <img src={uploadedMedia} className="w-full max-h-48 object-contain" />
+          )}
+          <button
+            onClick={() => setUploadedMedia(null)}
+            className="absolute top-3 right-3 p-1.5 bg-black/50 hover:bg-black/70 text-white rounded-lg backdrop-blur-sm transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
-            {isLiveVoice && (
-              <div className="absolute top-4 right-4 bg-red-500/20 border border-red-500/50 text-red-400 px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 animate-pulse shadow-lg backdrop-blur-sm">
-                <Mic className="w-4 h-4" /> LIVE AUDIO ACTIVE
-              </div>
-            )}
-         </div>
-      </div>
+      {/* Messages area */}
+      <div className="flex-1 overflow-y-auto">
+        {!hasMessages ? (
+          <div className="h-full flex flex-col items-center justify-center text-center px-6">
+            <div className="w-12 h-12 rounded-2xl bg-[#035925]/10 flex items-center justify-center mb-5">
+              <svg className="w-6 h-6 text-[#035925]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+            </div>
+            <h2 className="text-xl font-black text-[#002c11] mb-2" style={{ fontFamily: "'Instrument Sans', sans-serif" }}>
+              What can I help you with?
+            </h2>
+            <p className="text-sm text-[#5d6c7b] max-w-md leading-relaxed">
+              Ask me about your farm, upload a crop photo for analysis, or start a live voice conversation.
+            </p>
 
-      <div className="w-full lg:w-1/2 bg-white border border-[#002c11]/5 rounded-2xl flex flex-col shadow-sm">
-         <div className="p-4 border-b border-[#002c11]/5 bg-[#f9f6f1] flex justify-between items-center rounded-t-2xl">
-            <h3 className="font-bold text-[#002c11] flex items-center gap-2">
-              <MessageSquare className="w-5 h-5 text-[#035925]"/>
-              Mkulima AI
-            </h3>
-            <button
-              onClick={isLiveVoice ? stopLiveVoice : startLiveVoice}
-              className={`px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-sm ${isLiveVoice ? 'bg-red-50 hover:bg-red-100 text-red-600 border border-red-200' : 'bg-[#035925] hover:bg-[#002c11] text-white'}`}
-            >
-              {isLiveVoice ? <Square className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-              {isLiveVoice ? 'END LIVE TALK' : 'START LIVE TALK'}
-            </button>
-         </div>
-
-         <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div className="grid grid-cols-2 gap-3 mt-8 w-full max-w-md">
+              {[
+                { text: 'Check irrigation schedule for Zone A', icon: '💧' },
+                { text: 'When should I harvest my tomatoes?', icon: '🍅' },
+                { text: 'What pests should I watch for?', icon: '🐛' },
+                { text: 'Analyze soil moisture levels', icon: '🌱' },
+              ].map((suggestion) => (
+                <button
+                  key={suggestion.text}
+                  onClick={() => {
+                    setInputText(suggestion.text);
+                    textareaRef.current?.focus();
+                  }}
+                  className="text-left p-3 rounded-xl border border-[#002c11]/8 bg-white hover:bg-[#035925]/5 hover:border-[#035925]/20 transition-all text-[12px] text-[#002c11]/70 leading-snug group"
+                >
+                  <span className="text-base mb-1 block">{suggestion.icon}</span>
+                  {suggestion.text}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
             {messages.map((msg, idx) => (
-              <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[85%] rounded-2xl p-4 ${
-                  msg.role === 'user'
-                    ? 'bg-[#035925] text-white rounded-br-sm shadow-sm'
-                    : msg.role === 'system'
-                    ? 'bg-[#f9f6f1] text-[#5d6c7b] border border-[#002c11]/10 text-center w-full text-xs font-bold uppercase tracking-wider'
-                    : 'bg-[#f9f6f1] text-slate-800 border border-[#002c11]/10 rounded-bl-sm shadow-sm'
-                }`}>
-                  {msg.image && (
-                    <img src={msg.image} alt="Uploaded" className="w-full rounded-xl mb-3 border border-[#002c11]/10" />
-                  )}
-                  <div className={`prose prose-sm max-w-none ${msg.role === 'user' ? 'prose-invert' : 'text-[#002c11]/80'}`}>
-                    <ReactMarkdown>{msg.text}</ReactMarkdown>
+              <div key={idx}>
+                {msg.role === 'system' ? (
+                  <div className="flex justify-center">
+                    <span className="text-[11px] text-[#5d6c7b]/60 font-medium bg-[#002c11]/[0.03] px-3 py-1 rounded-full">
+                      {msg.text}
+                    </span>
                   </div>
-                </div>
+                ) : msg.role === 'user' ? (
+                  <div className="flex justify-end">
+                    <div className="max-w-[80%]">
+                      {msg.image && (
+                        <img src={msg.image} alt="Uploaded" className="max-w-xs rounded-xl mb-2 ml-auto" />
+                      )}
+                      <div className="bg-[#035925] text-white px-4 py-3 rounded-2xl rounded-br-md text-[14px] leading-relaxed">
+                        {msg.text}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex gap-3">
+                    <div className="w-7 h-7 rounded-lg bg-[#035925]/10 flex items-center justify-center shrink-0 mt-0.5">
+                      <svg className="w-3.5 h-3.5 text-[#035925]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="prose prose-sm max-w-none text-[#002c11]/80 text-[14px] leading-relaxed [&_p]:mb-2 [&_ul]:mb-2 [&_ol]:mb-2 [&_h1]:text-[#002c11] [&_h2]:text-[#002c11] [&_h3]:text-[#002c11] [&_strong]:text-[#002c11] [&_code]:bg-[#002c11]/5 [&_code]:text-[#002c11] [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded">
+                        <ReactMarkdown>{msg.text}</ReactMarkdown>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
             {isProcessing && (
-              <div className="flex justify-start">
-                <div className="bg-[#f9f6f1] border border-[#002c11]/10 rounded-2xl rounded-bl-sm p-4 flex items-center gap-2 shadow-sm">
-                  <Loader2 className="w-4 h-4 text-[#035925] animate-spin" />
-                  <span className="text-sm text-[#5d6c7b]">Analyzing...</span>
+              <div className="flex gap-3">
+                <div className="w-7 h-7 rounded-lg bg-[#035925]/10 flex items-center justify-center shrink-0 mt-0.5">
+                  <svg className="w-3.5 h-3.5 text-[#035925]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                </div>
+                <div className="flex items-center gap-2 py-2">
+                  <div className="flex gap-1">
+                    <span className="w-2 h-2 bg-[#035925]/30 rounded-full animate-bounce [animation-delay:0ms]"></span>
+                    <span className="w-2 h-2 bg-[#035925]/30 rounded-full animate-bounce [animation-delay:150ms]"></span>
+                    <span className="w-2 h-2 bg-[#035925]/30 rounded-full animate-bounce [animation-delay:300ms]"></span>
+                  </div>
                 </div>
               </div>
             )}
             <div ref={messagesEndRef} />
-         </div>
+          </div>
+        )}
+      </div>
 
-         <div className="p-4 border-t border-[#002c11]/5 bg-white rounded-b-2xl">
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
+      {/* Input area — centered, clean */}
+      <div className="shrink-0 px-4 pb-4 pt-2">
+        <div className="max-w-2xl mx-auto">
+          <div className="bg-white border border-[#002c11]/10 rounded-2xl shadow-sm focus-within:border-[#035925]/30 focus-within:shadow-md transition-all">
+            <div className="flex items-end gap-2 p-3">
+              <div className="flex items-center gap-1 shrink-0 pb-0.5">
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="p-2 text-[#5d6c7b]/60 hover:text-[#002c11] hover:bg-[#002c11]/5 rounded-lg transition-colors"
+                  title="Upload image or video"
+                >
+                  <Paperclip className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={toggleCamera}
+                  className={`p-2 rounded-lg transition-colors ${isCameraActive ? 'text-red-500 bg-red-50' : 'text-[#5d6c7b]/60 hover:text-[#002c11] hover:bg-[#002c11]/5'}`}
+                  title={isCameraActive ? 'Stop camera' : 'Start camera'}
+                >
+                  <Camera className="w-5 h-5" />
+                </button>
+                <input type="file" ref={fileInputRef} className="hidden" accept="image/*,video/*" onChange={handleFileUpload} />
+              </div>
+
+              <textarea
+                ref={textareaRef}
                 value={inputText}
                 onChange={e => setInputText(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleSendText()}
-                placeholder={isCameraActive ? "Ask about the camera feed..." : "Ask Mkulima AI..."}
-                className="flex-1 bg-white border border-[#002c11]/10 text-[#002c11] rounded-xl px-4 py-3 focus:outline-none focus:border-[#035925] focus:ring-1 focus:ring-[#035925] placeholder-[#5d6c7b]/60 shadow-sm"
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendText();
+                  }
+                }}
+                placeholder="Ask Mkulima AI anything..."
+                rows={1}
+                className="flex-1 resize-none bg-transparent text-[#002c11] text-[14px] leading-relaxed placeholder-[#5d6c7b]/40 focus:outline-none py-2 max-h-[200px]"
                 disabled={isLiveVoice || isProcessing}
               />
-              <button
-                onClick={handleSendText}
-                disabled={isLiveVoice || isProcessing || (!inputText.trim() && !uploadedMedia && !isCameraActive)}
-                className="p-3 bg-[#035925] text-white rounded-xl hover:bg-[#002c11] disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
-              >
-                <Send className="w-5 h-5"/>
-              </button>
+
+              <div className="flex items-center gap-1 shrink-0 pb-0.5">
+                <button
+                  onClick={isLiveVoice ? stopLiveVoice : startLiveVoice}
+                  className={`p-2 rounded-lg transition-colors ${isLiveVoice ? 'text-red-500 bg-red-50 animate-pulse' : 'text-[#5d6c7b]/60 hover:text-[#002c11] hover:bg-[#002c11]/5'}`}
+                  title={isLiveVoice ? 'End live voice' : 'Start live voice'}
+                >
+                  {isLiveVoice ? <Square className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                </button>
+                <button
+                  onClick={handleSendText}
+                  disabled={isLiveVoice || isProcessing || (!inputText.trim() && !uploadedMedia && !isCameraActive)}
+                  className="p-2 bg-[#035925] text-white rounded-lg hover:bg-[#002c11] disabled:opacity-30 disabled:hover:bg-[#035925] transition-colors"
+                >
+                  <ArrowUp className="w-5 h-5" />
+                </button>
+              </div>
             </div>
-         </div>
+          </div>
+          <p className="text-[10px] text-[#5d6c7b]/40 text-center mt-2">
+            Mkulima AI can make mistakes. Verify important farm decisions.
+          </p>
+        </div>
       </div>
+
       <canvas ref={canvasRef} className="hidden" />
     </div>
   );

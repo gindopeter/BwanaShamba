@@ -19,7 +19,7 @@ A React + Express app for managing farm operations in Tanzania. It tracks crop z
 - `src/components/Login.tsx` — Email/password login form
 - `src/components/Layout.tsx` — Sidebar layout with user profile (role badge) and logout button
 - `src/components/SettingsPage.tsx` — Settings page: profile edit, password change, admin user management
-- `src/components/LiveScout.tsx` — Camera/image/video upload + AI analysis + live voice (client-side Gemini)
+- `src/components/LiveScout.tsx` — AI Assistant: minimalist Claude-like chat + image/video upload + camera + live voice (client-side Gemini)
 - `src/components/Chatbot.tsx` — Floating AI assistant (server-side Gemini via `/api/chat`)
 
 ## API Routes

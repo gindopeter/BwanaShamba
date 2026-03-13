@@ -107,40 +107,41 @@ export default function App() {
 
   return (
     <Layout currentView={currentView} onNavigate={setCurrentView} user={user} onLogout={handleLogout}>
-      {/* Top bar */}
-      <div className="bg-white/80 backdrop-blur-sm border-b border-[#002c11]/5 px-6 lg:px-8 py-4 flex items-center justify-between sticky top-0 z-20">
-        <div>
-          <h2 className="text-lg font-black text-[#002c11]" style={{ fontFamily: "'Instrument Sans', sans-serif" }}>
-            {currentView === 'dashboard' && 'Farm Overview'}
-            {currentView === 'scout' && 'Live Scout'}
-            {currentView === 'map' && 'Farm Map'}
-            {currentView === 'settings' && 'Settings'}
-          </h2>
-          <p className="text-[11px] text-[#5d6c7b]">Malivundo, Pwani · 5 Acres · {zones.length} Active Zones</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="hidden sm:flex items-center gap-2 bg-[#035925]/5 px-3 py-1.5 rounded-full">
-            <span className="w-2 h-2 rounded-full bg-[#035925] animate-pulse"></span>
-            <span className="text-[11px] font-bold text-[#035925]">All Systems Online</span>
+      {/* Top bar — hidden on AI Assistant for clean layout */}
+      {currentView !== 'assistant' && (
+        <div className="bg-white/80 backdrop-blur-sm border-b border-[#002c11]/5 px-6 lg:px-8 py-4 flex items-center justify-between sticky top-0 z-20">
+          <div>
+            <h2 className="text-lg font-black text-[#002c11]" style={{ fontFamily: "'Instrument Sans', sans-serif" }}>
+              {currentView === 'dashboard' && 'Farm Overview'}
+              {currentView === 'map' && 'Farm Map'}
+              {currentView === 'settings' && 'Settings'}
+            </h2>
+            <p className="text-[11px] text-[#5d6c7b]">Malivundo, Pwani · 5 Acres · {zones.length} Active Zones</p>
           </div>
-          <button
-            onClick={loadData}
-            className="h-9 w-9 flex items-center justify-center text-[#5d6c7b] hover:text-[#002c11] border border-[#002c11]/10 rounded-lg bg-white transition-colors"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          </button>
-          <button
-            onClick={() => setShowNewTask(true)}
-            className="h-9 px-4 bg-[#035925] hover:bg-[#002c11] text-white rounded-lg font-bold text-xs flex items-center gap-1.5 transition-colors active:scale-[0.98]"
-            style={{ fontFamily: "'Instrument Sans', sans-serif" }}
-          >
-            <Plus className="w-3.5 h-3.5" />
-            New Task
-          </button>
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:flex items-center gap-2 bg-[#035925]/5 px-3 py-1.5 rounded-full">
+              <span className="w-2 h-2 rounded-full bg-[#035925] animate-pulse"></span>
+              <span className="text-[11px] font-bold text-[#035925]">All Systems Online</span>
+            </div>
+            <button
+              onClick={loadData}
+              className="h-9 w-9 flex items-center justify-center text-[#5d6c7b] hover:text-[#002c11] border border-[#002c11]/10 rounded-lg bg-white transition-colors"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+            <button
+              onClick={() => setShowNewTask(true)}
+              className="h-9 px-4 bg-[#035925] hover:bg-[#002c11] text-white rounded-lg font-bold text-xs flex items-center gap-1.5 transition-colors active:scale-[0.98]"
+              style={{ fontFamily: "'Instrument Sans', sans-serif" }}
+            >
+              <Plus className="w-3.5 h-3.5" />
+              New Task
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
-      <div className="p-6 lg:p-8 max-w-[1100px] mx-auto">
+      <div className={currentView === 'assistant' ? 'h-full' : 'p-6 lg:p-8 max-w-[1100px] mx-auto'}>
         {/* Dashboard View */}
         {currentView === 'dashboard' && (
           <div className="space-y-6">
@@ -208,7 +209,7 @@ export default function App() {
         )}
 
         {/* Other Views */}
-        {currentView === 'scout' && <LiveScout />}
+        {currentView === 'assistant' && <LiveScout />}
         {currentView === 'map' && <FarmMap />}
         {currentView === 'settings' && <SettingsPage user={user} onUserUpdate={(u) => setUser(u)} />}
 

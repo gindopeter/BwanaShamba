@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { LayoutDashboard, Sprout, Map as MapIcon, Settings, Menu, X, LogOut, MessageSquare } from 'lucide-react';
+import { LayoutDashboard, MessageSquare, Map as MapIcon, Settings, Menu, X, LogOut } from 'lucide-react';
 
 interface AuthUser {
   id: number;
@@ -22,7 +22,7 @@ export default function Layout({ children, currentView, onNavigate, user, onLogo
 
   const navItems = [
     { icon: <LayoutDashboard />, label: 'Overview', view: 'dashboard' },
-    { icon: <Sprout />, label: 'Live Scout', view: 'scout' },
+    { icon: <MessageSquare />, label: 'AI Assistant', view: 'assistant' },
     { icon: <MapIcon />, label: 'Farm Map', view: 'map' },
     { icon: <Settings />, label: 'Settings', view: 'settings' },
   ];
