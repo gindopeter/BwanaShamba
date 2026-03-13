@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Camera, Upload, Loader2, Mic, Square, Send, ArrowUp, Paperclip, X, Volume2, Image as ImageIcon, Plus, MessageSquare, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Camera, Upload, Loader2, Mic, Square, Send, ArrowUp, Paperclip, X, Volume2, Image as ImageIcon, Plus, MessageSquare, Trash2, ChevronLeft, ChevronRight, SwitchCamera } from 'lucide-react';
 import { GoogleGenAI, Modality } from '@google/genai';
 import ReactMarkdown from 'react-markdown';
 
@@ -45,6 +45,7 @@ export default function LiveScout() {
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [isLiveVoice, setIsLiveVoice] = useState(false);
   const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
+  const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
   const [uploadedMedia, setUploadedMedia] = useState<string | null>(null);
   const [uploadedMediaType, setUploadedMediaType] = useState<'image' | 'video'>('image');
   const [messages, setMessages] = useState<{role: string, text: string, image?: string}[]>([]);
@@ -177,15 +178,16 @@ export default function LiveScout() {
     }
   };
 
-  const toggleCamera = async () => {
-    if (isCameraActive) {
-      if (mediaStream) {
-        mediaStream.getTracks().forEach(t => t.stop());
-        setMediaStream(null);
-      }
-      if (videoRef.current) videoRef.current.srcObject = null;
-      setIsCameraActive(false);
-    } else {
+  const startCameraWithMode = async (mode: 'environment' | 'user') => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: mode } }
+      });
+      setMediaStream(stream);
+      setIsCameraActive(true);
+      setUploadedMedia(null);
+      setFacingMode(mode);
+    } catch {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true });
         setMediaStream(stream);
@@ -196,6 +198,27 @@ export default function LiveScout() {
         alert(`Camera access error: ${err.message || 'Denied or unavailable.'}`);
       }
     }
+  };
+
+  const toggleCamera = async () => {
+    if (isCameraActive) {
+      if (mediaStream) {
+        mediaStream.getTracks().forEach(t => t.stop());
+        setMediaStream(null);
+      }
+      if (videoRef.current) videoRef.current.srcObject = null;
+      setIsCameraActive(false);
+    } else {
+      await startCameraWithMode(facingMode);
+    }
+  };
+
+  const flipCamera = async () => {
+    if (mediaStream) {
+      mediaStream.getTracks().forEach(t => t.stop());
+    }
+    const newMode = facingMode === 'environment' ? 'user' : 'environment';
+    await startCameraWithMode(newMode);
   };
 
   const pendingAutoSendRef = useRef<string | null>(null);
@@ -742,17 +765,29 @@ export default function LiveScout() {
         {isCameraActive && (
           <div className="relative w-full h-40 bg-black rounded-xl overflow-hidden mb-4 mx-4 shrink-0" style={{ width: 'calc(100% - 2rem)' }}>
             <video autoPlay playsInline muted className="w-full h-full object-cover" ref={(el) => { if (el && mediaStream) el.srcObject = mediaStream; }} />
-            <button
-              onClick={toggleCamera}
-              className="absolute top-3 right-3 p-1.5 bg-black/50 hover:bg-black/70 text-white rounded-lg backdrop-blur-sm transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
+            <div className="absolute top-3 right-3 flex items-center gap-1.5">
+              <button
+                onClick={flipCamera}
+                className="p-1.5 bg-black/50 hover:bg-black/70 text-white rounded-lg backdrop-blur-sm transition-colors"
+                title={facingMode === 'environment' ? 'Switch to front camera' : 'Switch to rear camera'}
+              >
+                <SwitchCamera className="w-4 h-4" />
+              </button>
+              <button
+                onClick={toggleCamera}
+                className="p-1.5 bg-black/50 hover:bg-black/70 text-white rounded-lg backdrop-blur-sm transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
             {isLiveVoice && (
               <div className="absolute top-3 left-3 bg-red-500/80 text-white px-3 py-1 rounded-full text-[10px] font-bold flex items-center gap-1.5 animate-pulse backdrop-blur-sm">
                 <Mic className="w-3 h-3" /> LIVE
               </div>
             )}
+            <div className="absolute bottom-3 left-3 bg-black/50 text-white px-2 py-0.5 rounded text-[10px] backdrop-blur-sm">
+              {facingMode === 'environment' ? 'Rear' : 'Front'}
+            </div>
             {!isLiveVoice && !isProcessing && (
               <button
                 onClick={() => handleSendText('Analyze this image from my camera. Check for pests, diseases, or any crop issues.')}
