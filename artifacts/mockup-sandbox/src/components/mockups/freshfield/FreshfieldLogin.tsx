@@ -86,7 +86,7 @@ export function FreshfieldLogin() {
                   <span className="text-[#fc8e44] text-xs font-bold tracking-[0.2em] uppercase whitespace-nowrap">Farm Intelligence Platform</span>
                 </div>
                 <h1 className="text-[44px] font-black text-white leading-[1.05] mb-4" style={{ fontFamily: "'Instrument Sans', sans-serif" }}>
-                  Cultivating the<br/>future of farming
+                  Agent for your<br/>farming operations
                 </h1>
                 <p className="text-white/60 text-base leading-relaxed">
                   AI-powered insights, real-time monitoring, and automated systems for sustainable agriculture.
