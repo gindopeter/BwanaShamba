@@ -19,7 +19,7 @@ A React + Express app for managing farm operations in Tanzania. It tracks crop z
 - `src/components/Login.tsx` — Email/password login form
 - `src/components/Layout.tsx` — Sidebar layout with user profile (role badge) and logout button
 - `src/components/SettingsPage.tsx` — Settings page: profile edit, password change, admin user management
-- `src/components/LiveScout.tsx` — AI Assistant: minimalist Claude-like chat + image/video upload + camera + live voice (client-side Gemini)
+- `src/components/LiveScout.tsx` — AI Assistant: minimalist Claude-like chat + image/video upload + camera + live voice (client-side Gemini). Features: auto language switching (EN/SW), voice interruption (VAD-based), persistent conversation history with sidebar
 - `src/components/Chatbot.tsx` — Floating AI assistant (server-side Gemini via `/api/chat`)
 
 ## API Routes
@@ -40,6 +40,10 @@ A React + Express app for managing farm operations in Tanzania. It tracks crop z
 - `GET /api/tasks` — List all tasks
 - `POST /api/tasks` — Create a task
 - `PATCH /api/tasks/:id/status` — Update task status
+- `GET /api/conversations` — List user's conversations
+- `POST /api/conversations` — Create a new conversation
+- `DELETE /api/conversations/:id` — Delete a conversation
+- `GET /api/conversations/:id/messages` — Get messages for a conversation
 - `POST /api/chat` — Chat with Gemini AI (includes live farm data context)
 - `POST /api/analyze-crop` — Analyze crop image with Gemini Vision
 - `GET /api/gemini-session` — Get API key for live voice sessions

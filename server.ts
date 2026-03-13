@@ -306,10 +306,46 @@ async function startServer() {
     res.json({ success: true });
   });
 
-  // --- Chat API (Gemini) ---
+  // --- Conversations API ---
+  app.get("/api/conversations", isAuthenticated, (req, res) => {
+    const userId = (req.session as any).userId;
+    const conversations = db.prepare(
+      'SELECT * FROM conversations WHERE user_id = ? ORDER BY updated_at DESC'
+    ).all(userId);
+    res.json(conversations);
+  });
+
+  app.post("/api/conversations", isAuthenticated, (req, res) => {
+    const userId = (req.session as any).userId;
+    const { title } = req.body;
+    const result = db.prepare(
+      'INSERT INTO conversations (user_id, title) VALUES (?, ?)'
+    ).run(userId, title || 'New Conversation');
+    res.json({ id: result.lastInsertRowid, title: title || 'New Conversation' });
+  });
+
+  app.delete("/api/conversations/:id", isAuthenticated, (req, res) => {
+    const userId = (req.session as any).userId;
+    db.prepare('DELETE FROM chat_messages WHERE conversation_id = ? AND conversation_id IN (SELECT id FROM conversations WHERE user_id = ?)').run(req.params.id, userId);
+    db.prepare('DELETE FROM conversations WHERE id = ? AND user_id = ?').run(req.params.id, userId);
+    res.json({ success: true });
+  });
+
+  app.get("/api/conversations/:id/messages", isAuthenticated, (req, res) => {
+    const userId = (req.session as any).userId;
+    const conv = db.prepare('SELECT id FROM conversations WHERE id = ? AND user_id = ?').get(req.params.id, userId);
+    if (!conv) return res.status(404).json({ error: 'Conversation not found' });
+    const messages = db.prepare(
+      'SELECT id, role, text, image_url, created_at FROM chat_messages WHERE conversation_id = ? ORDER BY created_at ASC'
+    ).all(req.params.id);
+    res.json(messages);
+  });
+
+  // --- Chat API (Gemini) with conversation history ---
   app.post("/api/chat", isAuthenticated, async (req, res) => {
     try {
-      const { message, image, mimeType: clientMimeType } = req.body;
+      const { message, image, mimeType: clientMimeType, conversationId } = req.body;
+      const userId = (req.session as any).userId;
       const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) {
         return res.status(500).json({ reply: "Gemini API key is not configured. Please add GEMINI_API_KEY to your secrets." });
@@ -320,26 +356,60 @@ async function startServer() {
       const farmContext = getFarmContext();
       const systemInstruction = `You are 'BwanaShamba' (AI Farm Assistant) for a 5-acre tomato and onion farm in Malivundo, Pwani, Tanzania.
 You help farmers with questions about crops, soil, pest control, irrigation, and fertigation.
-You speak English and Kiswahili. If the user speaks Kiswahili, respond in Kiswahili.
+You are fluent in both English and Kiswahili. IMPORTANT: Always respond in the same language the user is currently using. If the user writes in Kiswahili, respond entirely in Kiswahili. If the user writes in English, respond in English. If the user switches languages mid-conversation, switch with them immediately.
 Be concise, practical, and helpful. Use the live farm data below to give specific, accurate answers about zones, tasks, and conditions.
 
 ${farmContext}
 
 Current Date: ${new Date().toISOString()}`;
 
-      let parts: any[] = [];
-      if (image) {
-        parts.push({ inlineData: { mimeType: clientMimeType || "image/jpeg", data: image } });
+      let convId = conversationId;
+      if (convId) {
+        const owned = db.prepare('SELECT id FROM conversations WHERE id = ? AND user_id = ?').get(convId, userId);
+        if (!owned) {
+          return res.status(403).json({ reply: "Conversation not found or access denied." });
+        }
+      } else {
+        const result = db.prepare('INSERT INTO conversations (user_id, title) VALUES (?, ?)').run(userId, (message || 'Image analysis').substring(0, 80));
+        convId = result.lastInsertRowid;
       }
-      parts.push({ text: message || "What do you see in this image?" });
+
+      const hasImage = !!image;
+      db.prepare('INSERT INTO chat_messages (conversation_id, role, text, image_url) VALUES (?, ?, ?, ?)').run(convId, 'user', message || 'Analyze this image.', hasImage ? 'attached' : null);
+
+      const history = db.prepare(
+        'SELECT role, text FROM chat_messages WHERE conversation_id = ? AND role IN (\'user\', \'ai\') ORDER BY created_at ASC'
+      ).all(convId) as { role: string; text: string }[];
+
+      const contents = history.map((msg: any) => ({
+        role: msg.role === 'ai' ? 'model' : 'user',
+        parts: [{ text: msg.text }]
+      }));
+
+      if (image) {
+        const lastContent = contents[contents.length - 1];
+        if (lastContent) {
+          lastContent.parts.unshift({ inlineData: { mimeType: clientMimeType || "image/jpeg", data: image } } as any);
+        }
+      }
 
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash",
-        contents: [{ parts }],
+        contents,
         config: { systemInstruction }
       });
 
-      res.json({ reply: response.text || "I could not generate a response." });
+      const reply = response.text || "I could not generate a response.";
+
+      db.prepare('INSERT INTO chat_messages (conversation_id, role, text) VALUES (?, ?, ?)').run(convId, 'ai', reply);
+      db.prepare('UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(convId);
+
+      if (history.length <= 2) {
+        const title = (message || 'Image analysis').substring(0, 80);
+        db.prepare('UPDATE conversations SET title = ? WHERE id = ?').run(title, convId);
+      }
+
+      res.json({ reply, conversationId: convId });
     } catch (err: any) {
       console.error("Chat API Error:", err.message);
       res.status(500).json({ reply: "Sorry, I encountered an error processing your request." });
