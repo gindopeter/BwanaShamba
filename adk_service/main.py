@@ -46,7 +46,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-ADK_INTERNAL_TOKEN = os.environ.get("ADK_INTERNAL_TOKEN", "bwanashamba-internal-service-token")
+ADK_INTERNAL_TOKEN = os.environ.get("ADK_INTERNAL_TOKEN", "")
+if not ADK_INTERNAL_TOKEN:
+    if os.environ.get("NODE_ENV") == "production":
+        raise RuntimeError("ADK_INTERNAL_TOKEN must be set in production")
+    ADK_INTERNAL_TOKEN = "bwanashamba-internal-dev-token"
+    print("[ADK] WARNING: Using default dev token. Set ADK_INTERNAL_TOKEN in production.")
 
 
 class ChatRequest(BaseModel):

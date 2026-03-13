@@ -228,7 +228,6 @@ export default function LiveScout() {
 
   const handleSendText = async (overrideText?: string) => {
     const textToSend = overrideText || inputText;
-    if (!textToSend.trim() && !uploadedMedia && !isCameraActive) return;
 
     let imageData = uploadedMedia ? uploadedMedia.split(',')[1] : undefined;
     let mimeType = 'image/jpeg';
@@ -248,9 +247,14 @@ export default function LiveScout() {
       }
     }
 
+    if (!textToSend.trim() && !imageData && !isCameraActive) return;
+
+    const messageText = textToSend.trim()
+      || (imageData ? 'Analyze this image and tell me what you see. Check for pests, diseases, or any issues.' : '');
+
     const userMsg = {
       role: 'user',
-      text: textToSend || (imageData ? 'Analyze this image.' : ''),
+      text: messageText,
       image: uploadedMedia && uploadedMediaType === 'image'
         ? uploadedMedia
         : (imageData ? `data:image/jpeg;base64,${imageData}` : undefined)
@@ -263,7 +267,7 @@ export default function LiveScout() {
 
     try {
       const body: any = {
-        message: userMsg.text,
+        message: messageText,
         conversationId: activeConversationId
       };
       if (imageData) {
@@ -295,6 +299,7 @@ export default function LiveScout() {
   const startLiveVoice = async () => {
     try {
       setIsLiveVoice(true);
+      isLiveVoiceRef.current = true;
       const sessionRes = await fetch('/api/gemini-session');
       const sessionData = await sessionRes.json();
       if (!sessionRes.ok || !sessionData.apiKey) {
@@ -330,7 +335,7 @@ export default function LiveScout() {
       let vadActiveFrames = 0;
 
       const sessionPromise = ai.live.connect({
-        model: "gemini-2.5-flash-preview-native-audio-dialog",
+        model: "gemini-live-2.5-flash-preview",
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Zephyr" } } },
@@ -425,12 +430,16 @@ export default function LiveScout() {
           },
           onerror: (error: any) => {
             console.error('[LiveVoice] Session error:', error);
-            setMessages(prev => [...prev, { role: 'system', text: 'Live voice connection error. Please try again.' }]);
-            stopLiveVoice();
+            if (isLiveVoiceRef.current) {
+              setMessages(prev => [...prev, { role: 'system', text: 'Live voice connection error. Please try again.' }]);
+              stopLiveVoice();
+            }
           },
-          onclose: () => {
-            console.log('[LiveVoice] Session closed');
-            stopLiveVoice();
+          onclose: (event: any) => {
+            console.log('[LiveVoice] Session closed', event);
+            if (isLiveVoiceRef.current) {
+              stopLiveVoice();
+            }
           }
         }
       });
@@ -444,7 +453,8 @@ export default function LiveScout() {
   };
 
   const stopLiveVoice = () => {
-    if (!isLiveVoiceRef.current && !processorRef.current && !audioStreamRef.current) return;
+    if (!isLiveVoiceRef.current && !processorRef.current && !audioStreamRef.current && !sessionRef.current) return;
+    isLiveVoiceRef.current = false;
     setIsLiveVoice(false);
     stopAiAudio();
     if (processorRef.current) {
@@ -458,6 +468,10 @@ export default function LiveScout() {
     if (frameIntervalRef.current) {
       clearInterval(frameIntervalRef.current);
       frameIntervalRef.current = null;
+    }
+    if (audioContextRef.current) {
+      audioContextRef.current.close().catch(() => {});
+      audioContextRef.current = null;
     }
     if (sessionRef.current) {
       sessionRef.current.then((session: any) => session.close()).catch(() => {});

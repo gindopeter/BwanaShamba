@@ -344,7 +344,7 @@ async function startServer() {
 
   // --- Chat API via ADK Multi-Agent Service (with direct Gemini fallback) ---
   const ADK_URL = process.env.ADK_SERVICE_URL || 'http://localhost:8001';
-  const ADK_TOKEN = process.env.ADK_INTERNAL_TOKEN || 'bwanashamba-internal-service-token';
+  const ADK_TOKEN = process.env.ADK_INTERNAL_TOKEN || 'bwanashamba-internal-dev-token';
 
   async function chatViaADK(message: string, userId: string, sessionId: string | null, image?: string, mimeType?: string): Promise<{ reply: string; adkSessionId: string; agentName: string }> {
     const controller = new AbortController();
