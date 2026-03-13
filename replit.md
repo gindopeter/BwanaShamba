@@ -7,10 +7,10 @@ A React + Express app for managing farm operations in Tanzania. It tracks crop z
 - **Frontend**: React 19 + TypeScript + Vite + Tailwind CSS 4
 - **Backend**: Express.js served via `server.ts` using `tsx` (port 5000)
 - **AI Backend**: Google ADK (Agent Development Kit) multi-agent service via FastAPI/Uvicorn (port 8001)
-- **Database**: SQLite via `better-sqlite3` (file: `farm.db`)
+- **Database**: Dual-mode — PostgreSQL (Cloud SQL) in production when `DATABASE_URL` is set, SQLite (`farm.db`) for local development
 - **AI**: Google Gemini (`gemini-2.5-flash`) via Google ADK multi-agent framework + `@google/genai` for live voice
 - **Weather**: Open-Meteo API (free, no key) — real 7-day forecast for Malivundo (-7.1, 38.7), used by both dashboard and AI agents for fertigation timing
-- **Auth**: Admin-managed email/password login with bcryptjs + express-session (SQLite session store)
+- **Auth**: Admin-managed email/password login with bcryptjs + express-session (PostgreSQL via `connect-pg-simple` in prod, SQLite in dev)
 
 ## ADK Multi-Agent System
 
@@ -38,7 +38,7 @@ If the ADK service is unavailable, the Node.js server falls back to direct Gemin
 ## Key Files
 
 - `server.ts` — Express server (port 5000), serves Vite as middleware in dev, handles all API routes including auth, proxies chat to ADK service
-- `server/db.ts` — SQLite database setup, schema (zones, tasks, logs, users, sessions), migrations, and seed data
+- `server/db.ts` — Database abstraction layer: auto-detects PostgreSQL (via `DATABASE_URL`) or SQLite, handles schema creation, migrations, and seed data. Exports async `dbAll`, `dbGet`, `dbRun`, `dbExec` methods.
 - `src/App.tsx` — Root component with auth state, navigation, data loading, and detail views (tasks, zones, weather forecast, water usage with per-zone/whole-farm reports)
 - `src/components/ActionQueue.tsx` — "Upcoming Task" widget: shows 15min before scheduled time, countdown at 10min, cancel/override button
 - `src/lib/api.ts` — Frontend API client with TypeScript interfaces
@@ -82,7 +82,7 @@ If the ADK service is unavailable, the Node.js server falls back to direct Gemin
 - Admin-managed accounts (no self-registration)
 - Default admin: `admin@farm.co.tz` / `admin123` (seeded on first run)
 - Passwords hashed with bcryptjs (10 rounds)
-- Sessions stored in SQLite via better-sqlite3-session-store
+- Sessions stored in PostgreSQL (connect-pg-simple) in production, SQLite in development
 - Admin users can create/list/delete other users via `/api/auth/users`
 - User roles: `admin` or `user`
 
@@ -114,11 +114,27 @@ Both services run as Replit workflows.
 - **Chatbot** — AI assistant with access to all live farm data (zones, tasks, logs)
 - **Task Engine** — Auto-generates irrigation tasks based on crop stage and mock weather
 
-## Environment Variables
+## Deployment (Google Cloud Run)
+
+- **Dockerfile** — Multi-stage build: Node.js builder for Vite frontend, slim runtime with Node.js + Python
+- **docker-start.sh** — Starts ADK (port 8001) + Node.js (port 8080) with signal handling
+- **cloudbuild.yaml** — Cloud Build config with Cloud SQL connection
+- Domain: `bwanashamba.com`
+
+### Cloud Run Environment Variables
 
 - `GEMINI_API_KEY` — Required for AI chat, crop analysis, and live voice features
-- `SESSION_SECRET` — Optional (falls back to built-in default for dev)
+- `SESSION_SECRET` — Required in production (random string for session encryption)
+- `DATABASE_URL` — PostgreSQL connection string (e.g., `postgresql://user:pass@/bwanashamba?host=/cloudsql/PROJECT:REGION:INSTANCE`)
+- `DB_SSL` — Set to `false` when using Cloud SQL Unix socket (default: SSL enabled)
 - `ADK_SERVICE_URL` — Optional (defaults to `http://localhost:8001`)
+- `ADK_INTERNAL_TOKEN` — Token for ADK service auth (set matching value on both services)
+
+### Local Development Environment Variables
+
+- `GEMINI_API_KEY` — Required
+- `DATABASE_URL` — If set, uses PostgreSQL; if unset, uses SQLite (`farm.db`)
+- `SESSION_SECRET` — Optional (has dev fallback)
 
 ## Planned Features (Not Yet Implemented)
 
