@@ -85,7 +85,7 @@ export function FreshfieldLogin() {
                   Agent for your<br/>farming operations
                 </h1>
                 <p className="text-white/60 text-base leading-relaxed">
-                  AI-powered insights, real-time monitoring, and automated systems for sustainable agriculture.
+                  AI powered insights, real time monitoring, and automated systems for sustainable agriculture.
                 </p>
               </div>
             </div>
