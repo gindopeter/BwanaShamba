@@ -331,6 +331,44 @@ async function startServer() {
     res.json({ id: info.lastInsertRowid });
   });
 
+  app.put("/api/zones/:id", isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name, crop_type, planting_date, area_size, status } = req.body;
+      const zone = await dbGet('SELECT * FROM zones WHERE id = ?', Number(id)) as any;
+      if (!zone) return res.status(404).json({ message: "Zone not found" });
+      await dbRun(
+        'UPDATE zones SET name = ?, crop_type = ?, planting_date = ?, area_size = ?, status = ? WHERE id = ?',
+        name ?? zone.name,
+        crop_type ?? zone.crop_type,
+        planting_date ?? zone.planting_date,
+        area_size ?? zone.area_size,
+        status ?? zone.status,
+        Number(id)
+      );
+      const updated = await dbGet('SELECT * FROM zones WHERE id = ?', Number(id));
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Update zone error:", err.message);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/zones/:id", isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const zone = await dbGet('SELECT id FROM zones WHERE id = ?', Number(id));
+      if (!zone) return res.status(404).json({ message: "Zone not found" });
+      await dbRun('DELETE FROM tasks WHERE zone_id = ?', Number(id));
+      await dbRun('DELETE FROM logs WHERE zone_id = ?', Number(id));
+      await dbRun('DELETE FROM zones WHERE id = ?', Number(id));
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Delete zone error:", err.message);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   app.patch("/api/zones/:id/yield", isAuthenticated, async (req, res) => {
     const { actual_yield_kg } = req.body;
     const { id } = req.params;

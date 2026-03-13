@@ -8,7 +8,8 @@ import LiveScout from './components/LiveScout';
 import FarmMap from './components/FarmMap';
 import ActionQueue from './components/ActionQueue';
 import SettingsPage from './components/SettingsPage';
-import { fetchZones, fetchTasks, runEngineChecks, updateTaskStatus, Zone, Task } from './lib/api';
+import ZoneModal from './components/ZoneModal';
+import { fetchZones, fetchTasks, runEngineChecks, updateTaskStatus, createZone, updateZone, deleteZone, Zone, Task } from './lib/api';
 import { RefreshCw, Plus, Loader2, ArrowLeft, MessageSquare, ChevronRight, Droplets } from 'lucide-react';
 
 export interface AuthUser {
@@ -27,6 +28,8 @@ export default function App() {
   const [weather, setWeather] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showNewTask, setShowNewTask] = useState(false);
+  const [showZoneModal, setShowZoneModal] = useState(false);
+  const [editingZone, setEditingZone] = useState<Zone | null>(null);
   const [currentView, setCurrentView] = useState('dashboard');
 
   useEffect(() => {
@@ -83,6 +86,25 @@ export default function App() {
     } catch (e) {
       console.error("Failed to create task", e);
     }
+  };
+
+  const handleCreateZone = async (data: { name: string; crop_type: string; planting_date: string; area_size: number }) => {
+    await createZone(data);
+    setShowZoneModal(false);
+    loadData();
+  };
+
+  const handleUpdateZone = async (data: { name: string; crop_type: string; planting_date: string; area_size: number }) => {
+    if (!editingZone) return;
+    await updateZone(editingZone.id, data);
+    setEditingZone(null);
+    loadData();
+  };
+
+  const handleDeleteZone = async (id: number) => {
+    await deleteZone(id);
+    setEditingZone(null);
+    loadData();
   };
 
   if (authLoading) {
@@ -239,7 +261,7 @@ export default function App() {
         )}
 
         {currentView === 'zones-detail' && (
-          <ZonesDetailView zones={zones} onUpdate={loadData} />
+          <ZonesDetailView zones={zones} onUpdate={loadData} onEdit={z => setEditingZone(z)} onAdd={() => setShowZoneModal(true)} />
         )}
 
         {currentView === 'weather-detail' && (
@@ -263,6 +285,22 @@ export default function App() {
             onClose={() => setShowNewTask(false)}
             onSave={handleCreateTask}
             zones={zones}
+          />
+        )}
+
+        {showZoneModal && (
+          <ZoneModal
+            onClose={() => setShowZoneModal(false)}
+            onSave={handleCreateZone}
+          />
+        )}
+
+        {editingZone && (
+          <ZoneModal
+            zone={editingZone}
+            onClose={() => setEditingZone(null)}
+            onSave={handleUpdateZone}
+            onDelete={handleDeleteZone}
           />
         )}
       </div>
@@ -318,12 +356,25 @@ function TasksDetailView({ tasks, zones, onAction }: { tasks: Task[]; zones: Zon
   );
 }
 
-function ZonesDetailView({ zones, onUpdate }: { zones: Zone[]; onUpdate: () => void }) {
+function ZonesDetailView({ zones, onUpdate, onEdit, onAdd }: { zones: Zone[]; onUpdate: () => void; onEdit: (z: Zone) => void; onAdd: () => void }) {
   return (
     <div className="space-y-4">
+      <button
+        onClick={onAdd}
+        className="w-full h-12 border-2 border-dashed border-[#035925]/20 rounded-xl text-sm font-bold text-[#035925]/60 hover:border-[#035925]/40 hover:text-[#035925] hover:bg-[#035925]/5 transition-all flex items-center justify-center gap-2"
+        style={{ fontFamily: "'Instrument Sans', sans-serif" }}
+      >
+        <Plus className="w-4 h-4" /> Add New Zone
+      </button>
       {zones.map(zone => (
-        <ZoneCard key={zone.id} zone={zone} onUpdate={onUpdate} />
+        <ZoneCard key={zone.id} zone={zone} onUpdate={onUpdate} onEdit={onEdit} />
       ))}
+      {zones.length === 0 && (
+        <div className="text-center py-12 text-[#5d6c7b]">
+          <p className="text-lg font-bold mb-2">No zones yet</p>
+          <p className="text-sm">Add your first farm zone to get started</p>
+        </div>
+      )}
     </div>
   );
 }

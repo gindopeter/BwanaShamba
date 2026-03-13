@@ -81,3 +81,29 @@ export async function analyzeCropImage(zone_id: number, image: string) {
   });
   return res.json();
 }
+
+export async function createZone(data: { name: string; crop_type: string; planting_date: string; area_size: number }) {
+  const res = await fetch('/api/zones', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.message || 'Failed to create zone'); }
+  return res.json();
+}
+
+export async function updateZone(id: number, data: { name?: string; crop_type?: string; planting_date?: string; area_size?: number; status?: string }) {
+  const res = await fetch(`/api/zones/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.message || 'Failed to update zone'); }
+  return res.json();
+}
+
+export async function deleteZone(id: number) {
+  const res = await fetch(`/api/zones/${id}`, { method: 'DELETE' });
+  if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.message || 'Failed to delete zone'); }
+  return res.json();
+}

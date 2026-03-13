@@ -1,7 +1,8 @@
 import { Zone, toggleIrrigation } from '../lib/api';
 import { useState } from 'react';
+import { Pencil } from 'lucide-react';
 
-export default function ZoneCard({ zone, onUpdate }: { zone: Zone, onUpdate: () => void }) {
+export default function ZoneCard({ zone, onUpdate, onEdit }: { zone: Zone, onUpdate: () => void, onEdit?: (zone: Zone) => void }) {
   const isTomato = zone.crop_type === 'Tomato';
   const [loading, setLoading] = useState(false);
   const totalDays = isTomato ? 120 : 150;
@@ -31,7 +32,15 @@ export default function ZoneCard({ zone, onUpdate }: { zone: Zone, onUpdate: () 
             <p className="text-[11px] text-[#5d6c7b]">{zone.area_size} acres · Day {zone.current_growth_day}</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          {onEdit && (
+            <button
+              onClick={() => onEdit(zone)}
+              className="w-8 h-8 flex items-center justify-center text-[#5d6c7b] hover:text-[#002c11] border border-[#002c11]/10 rounded-lg bg-white transition-colors hover:bg-[#f9f6f1]"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+          )}
           <div className="flex items-center gap-1.5 bg-[#f9f6f1] px-2.5 py-1 rounded-full">
             <span className={`w-2 h-2 rounded-full ${zone.irrigation_status === 'Running' ? 'bg-blue-500' : 'bg-gray-400'}`}></span>
             <span className="text-[10px] font-bold text-[#002c11]/60">{zone.irrigation_status}</span>

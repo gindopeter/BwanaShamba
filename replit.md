@@ -41,6 +41,7 @@ If the ADK service is unavailable, the Node.js server falls back to direct Gemin
 - `server/db.ts` — Database abstraction layer: auto-detects PostgreSQL (via `DATABASE_URL`) or SQLite, handles schema creation, migrations, and seed data. Exports async `dbAll`, `dbGet`, `dbRun`, `dbExec` methods.
 - `src/App.tsx` — Root component with auth state, navigation, data loading, and detail views (tasks, zones, weather forecast, water usage with per-zone/whole-farm reports)
 - `src/components/ActionQueue.tsx` — "Upcoming Task" widget: shows 15min before scheduled time, countdown at 10min, cancel/override button
+- `src/components/ZoneModal.tsx` — Add/Edit/Delete zone modal with loading states and error handling
 - `src/lib/api.ts` — Frontend API client with TypeScript interfaces
 - `src/components/Login.tsx` — Email/password login form
 - `src/components/Layout.tsx` — Sidebar layout with user profile (role badge) and logout button
@@ -63,6 +64,8 @@ If the ADK service is unavailable, the Node.js server falls back to direct Gemin
 - `PUT /api/auth/profile` — Update own profile name (protected)
 - `GET /api/zones` — List zones with computed growth data
 - `POST /api/zones` — Create a zone
+- `PUT /api/zones/:id` — Update a zone (name, crop type, planting date, area size, status)
+- `DELETE /api/zones/:id` — Delete a zone and its associated tasks/logs
 - `PATCH /api/zones/:id/yield` — Record harvest yield
 - `POST /api/zones/:id/irrigation` — Toggle irrigation status
 - `GET /api/tasks` — List all tasks
@@ -107,7 +110,8 @@ Both services run as Replit workflows.
 ## Features
 
 - **Auth** — Admin-managed email/password login (no self-registration)
-- **Dashboard** — Zone cards, task list, weather widget, yield/water stats
+- **Dashboard** — Zone cards (with edit button), task list, weather widget, yield/water stats
+- **Zone Management** — Add, edit, and delete zones from the Active Zones detail view
 - **AI Assistant** — Multi-agent ADK-powered chat with SSE streaming responses, pest scout, irrigation, task planner, and market specialists
 - **Live Scout** — Camera/image/video upload + AI crop analysis + live voice mode
 - **Farm Map** — Visual map of farm zones
