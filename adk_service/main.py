@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 import fastapi
 from fastapi import FastAPI, HTTPException, Request as FastAPIRequest
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional
 
@@ -60,6 +61,7 @@ class ChatRequest(BaseModel):
     user_id: Optional[str] = "default_user"
     image: Optional[str] = None
     mime_type: Optional[str] = "image/jpeg"
+    stream: Optional[bool] = False
 
 
 class ChatResponse(BaseModel):
@@ -73,83 +75,73 @@ async def health():
     return {"status": "ok", "service": "bwanashamba-adk", "agents": [root_agent.name] + [a.name for a in root_agent.sub_agents]}
 
 
-@app.post("/chat", response_model=ChatResponse)
+async def _prepare_session_and_content(request: ChatRequest):
+    user_id = request.user_id or "default_user"
+    session_id = request.session_id
+
+    if not session_id:
+        session = await session_service.create_session(app_name="bwanashamba", user_id=user_id)
+        session_id = session.id
+    else:
+        try:
+            existing = await session_service.get_session(app_name="bwanashamba", user_id=user_id, session_id=session_id)
+            if not existing:
+                session = await session_service.create_session(app_name="bwanashamba", user_id=user_id)
+                session_id = session.id
+        except Exception:
+            session = await session_service.create_session(app_name="bwanashamba", user_id=user_id)
+            session_id = session.id
+
+    parts = []
+    if request.image:
+        try:
+            image_bytes = base64.b64decode(request.image)
+            parts.append(types.Part.from_bytes(data=image_bytes, mime_type=request.mime_type))
+        except Exception as e:
+            print(f"[ADK] Image decode error: {e}")
+
+    if request.message:
+        parts.append(types.Part.from_text(text=request.message))
+    elif not parts:
+        raise HTTPException(status_code=400, detail="No message or image provided")
+
+    content = types.Content(role="user", parts=parts)
+    return user_id, session_id, content
+
+
+@app.post("/chat")
 async def chat(request: ChatRequest, raw_request: FastAPIRequest):
     auth_header = raw_request.headers.get("authorization", "")
     token = auth_header.replace("Bearer ", "") if auth_header.startswith("Bearer ") else ""
     if token != ADK_INTERNAL_TOKEN:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    print(f"[ADK] Chat request: message='{request.message[:50]}', user={request.user_id}, has_image={bool(request.image)}")
+    print(f"[ADK] Chat request: message='{request.message[:50]}', user={request.user_id}, has_image={bool(request.image)}, stream={request.stream}")
+
     try:
-        user_id = request.user_id or "default_user"
-        session_id = request.session_id
+        user_id, session_id, content = await _prepare_session_and_content(request)
 
-        if not session_id:
-            session = await session_service.create_session(
-                app_name="bwanashamba",
-                user_id=user_id,
+        if request.stream:
+            return StreamingResponse(
+                _stream_response(user_id, session_id, content),
+                media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
             )
-            session_id = session.id
-        else:
-            try:
-                existing = await session_service.get_session(
-                    app_name="bwanashamba",
-                    user_id=user_id,
-                    session_id=session_id,
-                )
-                if not existing:
-                    session = await session_service.create_session(
-                        app_name="bwanashamba",
-                        user_id=user_id,
-                    )
-                    session_id = session.id
-            except Exception:
-                session = await session_service.create_session(
-                    app_name="bwanashamba",
-                    user_id=user_id,
-                )
-                session_id = session.id
-
-        parts = []
-        if request.image:
-            try:
-                image_bytes = base64.b64decode(request.image)
-                parts.append(types.Part.from_bytes(data=image_bytes, mime_type=request.mime_type))
-            except Exception as e:
-                print(f"[ADK] Image decode error: {e}")
-
-        if request.message:
-            parts.append(types.Part.from_text(text=request.message))
-        elif not parts:
-            raise HTTPException(status_code=400, detail="No message or image provided")
-
-        content = types.Content(role="user", parts=parts)
 
         final_response = ""
         agent_name = root_agent.name
 
-        async for event in runner.run_async(
-            user_id=user_id,
-            session_id=session_id,
-            new_message=content,
-        ):
+        async for event in runner.run_async(user_id=user_id, session_id=session_id, new_message=content):
             if event.is_final_response():
                 if event.content and event.content.parts:
-                    final_response = "\n".join(
-                        p.text for p in event.content.parts if p.text
-                    )
+                    final_response = "\n".join(p.text for p in event.content.parts if p.text)
                 if hasattr(event, 'author') and event.author:
                     agent_name = event.author
 
         if not final_response:
             final_response = "I could not generate a response. Please try again."
 
-        return ChatResponse(
-            reply=final_response,
-            session_id=session_id,
-            agent_name=agent_name,
-        )
+        return ChatResponse(reply=final_response, session_id=session_id, agent_name=agent_name)
 
     except HTTPException:
         raise
@@ -158,6 +150,28 @@ async def chat(request: ChatRequest, raw_request: FastAPIRequest):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
+
+async def _stream_response(user_id: str, session_id: str, content):
+    agent_name = root_agent.name
+    try:
+        yield f"data: {json.dumps({'type': 'start', 'session_id': session_id})}\n\n"
+
+        async for event in runner.run_async(user_id=user_id, session_id=session_id, new_message=content):
+            if hasattr(event, 'author') and event.author:
+                agent_name = event.author
+
+            if event.is_final_response():
+                if event.content and event.content.parts:
+                    for part in event.content.parts:
+                        if part.text:
+                            yield f"data: {json.dumps({'type': 'text', 'content': part.text, 'agent': agent_name})}\n\n"
+
+        yield f"data: {json.dumps({'type': 'done', 'session_id': session_id, 'agent': agent_name})}\n\n"
+
+    except Exception as e:
+        print(f"[ADK] Stream error: {e}")
+        yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
 
 
 if __name__ == "__main__":

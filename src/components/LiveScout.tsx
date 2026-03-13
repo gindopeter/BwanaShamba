@@ -268,7 +268,8 @@ export default function LiveScout() {
     try {
       const body: any = {
         message: messageText,
-        conversationId: activeConversationId
+        conversationId: activeConversationId,
+        stream: true
       };
       if (imageData) {
         body.image = imageData;
@@ -280,14 +281,75 @@ export default function LiveScout() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       });
-      const data = await chatRes.json();
 
-      if (data.conversationId && !activeConversationId) {
-        setActiveConversationId(data.conversationId);
+      if (!chatRes.ok) {
+        throw new Error(`Server error ${chatRes.status}`);
       }
 
-      setMessages(prev => [...prev, { role: 'ai', text: data.reply || '' }]);
-      loadConversations();
+      const contentType = chatRes.headers.get('content-type') || '';
+      if (contentType.includes('text/event-stream') && chatRes.body) {
+        setMessages(prev => [...prev, { role: 'ai', text: '' }]);
+        const reader = chatRes.body.getReader();
+        const decoder = new TextDecoder();
+        let accumulated = '';
+        let buffer = '';
+        let hasError = false;
+
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                try {
+                  const parsed = JSON.parse(line.slice(6));
+                  if (parsed.type === 'text') {
+                    accumulated += parsed.content;
+                    const current = accumulated;
+                    setMessages(prev => {
+                      const updated = [...prev];
+                      updated[updated.length - 1] = { role: 'ai', text: current };
+                      return updated;
+                    });
+                  } else if (parsed.type === 'error') {
+                    hasError = true;
+                    const errMsg = parsed.message || 'An error occurred while processing your request.';
+                    setMessages(prev => {
+                      const updated = [...prev];
+                      updated[updated.length - 1] = { role: 'system', text: errMsg };
+                      return updated;
+                    });
+                  } else if (parsed.type === 'start' && parsed.conversationId && !activeConversationId) {
+                    setActiveConversationId(parsed.conversationId);
+                  } else if (parsed.type === 'done' && parsed.conversationId && !activeConversationId) {
+                    setActiveConversationId(parsed.conversationId);
+                  }
+                } catch { }
+              }
+            }
+          }
+        } finally {
+          reader.releaseLock();
+        }
+        if (!hasError && !accumulated) {
+          setMessages(prev => {
+            const updated = [...prev];
+            updated[updated.length - 1] = { role: 'system', text: 'No response received. Please try again.' };
+            return updated;
+          });
+        }
+        loadConversations();
+      } else {
+        const data = await chatRes.json();
+        if (data.conversationId && !activeConversationId) {
+          setActiveConversationId(data.conversationId);
+        }
+        setMessages(prev => [...prev, { role: 'ai', text: data.reply || '' }]);
+        loadConversations();
+      }
     } catch (err) {
       console.error(err);
       setMessages(prev => [...prev, { role: 'system', text: 'Error connecting to BwanaShamba. Check that your API key is configured.' }]);
@@ -554,10 +616,13 @@ export default function LiveScout() {
             <p className="text-xs text-[#5d6c7b]/50 text-center py-6">No conversations yet</p>
           ) : (
             conversations.map(conv => (
-              <button
+              <div
                 key={conv.id}
+                role="button"
+                tabIndex={0}
                 onClick={() => loadConversation(conv.id)}
-                className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-colors group flex items-center gap-2 ${
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') loadConversation(conv.id); }}
+                className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-colors group flex items-center gap-2 cursor-pointer ${
                   activeConversationId === conv.id
                     ? 'bg-[#035925]/10 text-[#002c11]'
                     : 'text-[#5d6c7b] hover:bg-[#002c11]/5 hover:text-[#002c11]'
@@ -574,7 +639,7 @@ export default function LiveScout() {
                 >
                   <Trash2 className="w-3 h-3 text-red-400" />
                 </button>
-              </button>
+              </div>
             ))
           )}
         </div>

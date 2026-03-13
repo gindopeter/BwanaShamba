@@ -417,6 +417,29 @@ async function startServer() {
     }
   }
 
+  function createADKStreamFetch(message: string, userId: string, sessionId: string | null, image?: string, mimeType?: string): { promise: Promise<Response>; abort: () => void } {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 90000);
+    const body: any = { message, user_id: `user_${userId}`, session_id: sessionId, stream: true };
+    if (image) { body.image = image; body.mime_type = mimeType || 'image/jpeg'; }
+    const promise = fetch(`${ADK_URL}/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ADK_TOKEN}` },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    }).then(resp => {
+      if (!resp.ok) {
+        clearTimeout(timeout);
+        throw new Error(`ADK returned ${resp.status}`);
+      }
+      return resp;
+    });
+    return {
+      promise,
+      abort: () => { clearTimeout(timeout); controller.abort(); },
+    };
+  }
+
   async function chatViaGeminiDirect(message: string, contents: any[], image?: string, mimeType?: string): Promise<string> {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) throw new Error("Gemini API key not configured");
@@ -448,7 +471,7 @@ Current Date: ${new Date().toISOString()}`;
 
   app.post("/api/chat", isAuthenticated, async (req, res) => {
     try {
-      const { message, image, mimeType: clientMimeType, conversationId } = req.body;
+      const { message, image, mimeType: clientMimeType, conversationId, stream: wantStream } = req.body;
       const userId = (req.session as any).userId;
 
       let convId = conversationId;
@@ -465,11 +488,100 @@ Current Date: ${new Date().toISOString()}`;
       const hasImage = !!image;
       db.prepare('INSERT INTO chat_messages (conversation_id, role, text, image_url) VALUES (?, ?, ?, ?)').run(convId, 'user', message || 'Analyze this image.', hasImage ? 'attached' : null);
 
-      const adkSessionKey = `adk_session_${convId}`;
       let adkSessionId: string | null = null;
       const existing = db.prepare('SELECT text FROM chat_messages WHERE conversation_id = ? AND role = \'system\' AND text LIKE \'adk_session:%\' ORDER BY created_at DESC LIMIT 1').get(convId) as any;
       if (existing) {
         adkSessionId = existing.text.replace('adk_session:', '');
+      }
+
+      if (wantStream) {
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+        res.setHeader('X-Accel-Buffering', 'no');
+        res.flushHeaders();
+
+        res.write(`data: ${JSON.stringify({ type: 'start', conversationId: convId })}\n\n`);
+
+        let fullReply = '';
+        let agentName = 'gemini-direct';
+        let sessionSaved = false;
+        let clientDisconnected = false;
+        let adkStreamCtrl: { abort: () => void } | null = null;
+
+        res.on('close', () => {
+          clientDisconnected = true;
+          adkStreamCtrl?.abort();
+        });
+
+        try {
+          const { promise, abort } = createADKStreamFetch(message || 'Analyze this image.', String(userId), adkSessionId, image, clientMimeType);
+          adkStreamCtrl = { abort };
+          const adkResp = await promise;
+          const reader = adkResp.body;
+          if (reader) {
+            let buffer = '';
+            for await (const chunk of reader as any) {
+              if (clientDisconnected) break;
+              buffer += (typeof chunk === 'string' ? chunk : new TextDecoder().decode(chunk));
+              const lines = buffer.split('\n');
+              buffer = lines.pop() || '';
+              for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                  try {
+                    const parsed = JSON.parse(line.slice(6));
+                    if (parsed.type === 'text') {
+                      fullReply += parsed.content;
+                      agentName = parsed.agent || agentName;
+                      if (!clientDisconnected) {
+                        res.write(`data: ${JSON.stringify({ type: 'text', content: parsed.content })}\n\n`);
+                      }
+                    } else if (parsed.type === 'error') {
+                      if (!clientDisconnected) {
+                        res.write(`data: ${JSON.stringify({ type: 'error', message: parsed.message || 'Agent error' })}\n\n`);
+                      }
+                    } else if ((parsed.type === 'start' || parsed.type === 'done') && parsed.session_id && !adkSessionId && !sessionSaved) {
+                      sessionSaved = true;
+                      db.prepare('INSERT INTO chat_messages (conversation_id, role, text) VALUES (?, ?, ?)').run(convId, 'system', `adk_session:${parsed.session_id}`);
+                    }
+                    if (parsed.type === 'done') {
+                      agentName = parsed.agent || agentName;
+                    }
+                  } catch { }
+                }
+              }
+            }
+          }
+          abort();
+          console.log(`[chat] ADK stream agent '${agentName}' handled conversation ${convId}`);
+        } catch (adkErr: any) {
+          if (clientDisconnected) return;
+          console.log(`[chat] ADK stream unavailable (${adkErr.message}), falling back to direct Gemini`);
+          const history = db.prepare(
+            'SELECT role, text FROM chat_messages WHERE conversation_id = ? AND role IN (\'user\', \'ai\') ORDER BY created_at ASC'
+          ).all(convId) as { role: string; text: string }[];
+          const contents = history.map((msg: any) => ({
+            role: msg.role === 'ai' ? 'model' : 'user',
+            parts: [{ text: msg.text }]
+          }));
+          fullReply = await chatViaGeminiDirect(message, contents, image, clientMimeType);
+          res.write(`data: ${JSON.stringify({ type: 'text', content: fullReply })}\n\n`);
+        }
+
+        if (fullReply) {
+          db.prepare('INSERT INTO chat_messages (conversation_id, role, text) VALUES (?, ?, ?)').run(convId, 'ai', fullReply);
+          db.prepare('UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(convId);
+          const historyCount = db.prepare('SELECT id FROM chat_messages WHERE conversation_id = ? AND role IN (\'user\', \'ai\')').all(convId);
+          if (historyCount.length <= 2) {
+            db.prepare('UPDATE conversations SET title = ? WHERE id = ?').run((message || 'Image analysis').substring(0, 80), convId);
+          }
+        }
+
+        if (!clientDisconnected) {
+          res.write(`data: ${JSON.stringify({ type: 'done', conversationId: convId, agent: agentName })}\n\n`);
+          res.end();
+        }
+        return;
       }
 
       let reply: string;
