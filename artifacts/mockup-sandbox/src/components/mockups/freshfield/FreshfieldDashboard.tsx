@@ -163,27 +163,17 @@ export function FreshfieldDashboard() {
               </div>
 
               {/* Weather */}
-              <div className="bg-[#002c11] rounded-xl p-5 text-white">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-[10px] font-black uppercase tracking-[0.15em] text-white/40" style={{ fontFamily: "'Instrument Sans', sans-serif" }}>Weather</h3>
+              <div className="bg-[#002c11] rounded-xl p-4 text-white">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-end gap-2">
+                    <span className="text-2xl font-black" style={{ fontFamily: "'Instrument Sans', sans-serif" }}>28°</span>
+                    <span className="text-white/50 text-xs mb-0.5 font-medium">Partly Cloudy</span>
+                  </div>
                   <span className="text-lg">🌤️</span>
                 </div>
-                <div className="flex items-end gap-2 mb-4">
-                  <span className="text-4xl font-black" style={{ fontFamily: "'Instrument Sans', sans-serif" }}>28°</span>
-                  <span className="text-white/50 text-sm mb-1 font-medium">Partly Cloudy</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { label: 'Humidity', value: '72%' },
-                    { label: 'Wind', value: '12 km/h' },
-                    { label: 'Rain Risk', value: '15%' },
-                    { label: 'UV Index', value: '6' }
-                  ].map((w) => (
-                    <div key={w.label} className="bg-white/[0.06] rounded-lg p-2.5">
-                      <p className="text-[9px] text-white/30 font-bold uppercase tracking-wider">{w.label}</p>
-                      <p className="text-sm font-black text-white">{w.value}</p>
-                    </div>
-                  ))}
+                <div className="flex gap-3 text-[10px] text-white/40">
+                  <span>Humidity <span className="text-white font-bold">72%</span></span>
+                  <span>Wind <span className="text-white font-bold">12 km/h</span></span>
                 </div>
               </div>
             </div>
