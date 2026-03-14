@@ -438,6 +438,7 @@ export default function LiveScout() {
       setIsLiveVoice(true);
       isLiveVoiceRef.current = true;
       sessionReadyRef.current = false;
+      voiceMessagesRef.current = [];
       const sessionRes = await fetch('/api/gemini-session');
       const sessionData = await sessionRes.json();
       if (!sessionRes.ok || !sessionData.apiKey) {
@@ -584,6 +585,7 @@ export default function LiveScout() {
               if (part.text) {
                 console.log('[LiveVoice] Got text response:', part.text.substring(0, 80));
                 setMessages(prev => [...prev, { role: 'ai', text: part.text }]);
+                voiceMessagesRef.current.push({ role: 'ai', text: part.text });
               }
             }
           }
@@ -649,6 +651,28 @@ export default function LiveScout() {
     }
   };
 
+  const voiceMessagesRef = useRef<{role: string, text: string}[]>([]);
+
+  const saveVoiceTranscript = async () => {
+    const voiceMessages = voiceMessagesRef.current;
+    if (voiceMessages.length === 0) return;
+
+    try {
+      const res = await fetch('/api/voice-transcript', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: voiceMessages })
+      });
+      if (res.ok) {
+        console.log('[LiveVoice] Transcript saved successfully');
+        loadConversations();
+      }
+    } catch (err) {
+      console.error('[LiveVoice] Failed to save transcript:', err);
+    }
+    voiceMessagesRef.current = [];
+  };
+
   const stopLiveVoice = () => {
     if (!isLiveVoiceRef.current && !processorRef.current && !audioStreamRef.current && !sessionRef.current) return;
     isLiveVoiceRef.current = false;
@@ -676,6 +700,7 @@ export default function LiveScout() {
       sessionRef.current = null;
     }
     setMessages(prev => [...prev, { role: 'system', text: 'Live voice session ended.' }]);
+    saveVoiceTranscript();
   };
 
   const hasMessages = messages.length > 0;

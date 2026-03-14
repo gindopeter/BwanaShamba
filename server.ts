@@ -740,6 +740,37 @@ Be concise and actionable.`;
     res.json({ apiKey });
   });
 
+  app.post("/api/voice-transcript", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req.session as any).userId;
+      const { conversationId, messages: transcriptMessages } = req.body;
+
+      let convId = conversationId;
+      if (!convId) {
+        const title = 'Voice Scout Session — ' + new Date().toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
+        const result = await dbRun('INSERT INTO conversations (user_id, title) VALUES (?, ?)', userId, title);
+        convId = result.lastInsertRowid;
+      }
+
+      if (transcriptMessages && Array.isArray(transcriptMessages)) {
+        for (const msg of transcriptMessages) {
+          if (msg.role === 'system') continue;
+          const role = msg.role === 'user' ? 'user' : 'ai';
+          await dbRun(
+            'INSERT INTO chat_messages (conversation_id, role, text) VALUES (?, ?, ?)',
+            convId, role, msg.text || ''
+          );
+        }
+      }
+
+      await dbRun('UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?', convId);
+      res.json({ success: true, conversationId: convId });
+    } catch (err: any) {
+      console.error('[voice-transcript] Error saving transcript:', err.message);
+      res.status(500).json({ error: 'Failed to save voice transcript' });
+    }
+  });
+
   app.post("/api/engine/run-checks", isAuthenticated, async (req, res) => {
     const zones = await dbAll("SELECT * FROM zones WHERE status = 'Active'");
     const newTasks = [];
