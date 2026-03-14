@@ -14,7 +14,7 @@ steps:
       - '--image'
       - 'gcr.io/$PROJECT_ID/bwanashamba'
       - '--region'
-      - 'us-central1'
+      - 'europe-west1'
       - '--platform'
       - 'managed'
       - '--allow-unauthenticated'
@@ -36,7 +36,7 @@ steps:
       - 'NODE_ENV=production,ADK_PORT=8001,GOOGLE_GENAI_USE_VERTEXAI=false'
 
 substitutions:
-  _CLOUD_SQL_INSTANCE: 'YOUR_PROJECT:us-central1:bwanashamba-db'
+  _CLOUD_SQL_INSTANCE: 'bwanashamba:europe-west1:bwanashamba-db'
 
 images:
   - 'gcr.io/$PROJECT_ID/bwanashamba'
