@@ -22,7 +22,7 @@ RUN npm ci --omit=dev
 COPY requirements.txt ./
 RUN python3 -m pip install --break-system-packages --no-cache-dir -r requirements.txt
 
-COPY server.ts tsconfig.json vite.config.ts ./
+COPY server.ts tsconfig.json ./
 COPY server/ ./server/
 COPY adk_service/ ./adk_service/
 COPY --from=builder /app/dist ./dist

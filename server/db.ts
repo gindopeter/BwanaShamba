@@ -1,4 +1,3 @@
-import Database from 'better-sqlite3';
 import path from 'path';
 import os from 'os';
 import bcrypt from 'bcryptjs';
@@ -46,7 +45,8 @@ async function initPostgres() {
   }
 }
 
-function initSqlite() {
+async function initSqlite() {
+  const { default: Database } = await import('better-sqlite3');
   try {
     sqliteDb = new Database('farm.db');
   } catch (err: any) {
@@ -316,7 +316,7 @@ export async function initDatabase() {
   if (isPostgres) {
     await initPostgres();
   } else {
-    initSqlite();
+    await initSqlite();
   }
   await createSchema();
   await runMigrations();
