@@ -33,10 +33,14 @@ steps:
       - '--add-cloudsql-instances'
       - '${_CLOUD_SQL_INSTANCE}'
       - '--set-env-vars'
-      - 'NODE_ENV=production,ADK_PORT=8001,GOOGLE_GENAI_USE_VERTEXAI=false'
+      - 'NODE_ENV=production,ADK_PORT=8001,GOOGLE_GENAI_USE_VERTEXAI=false,DB_SSL=false,GEMINI_API_KEY=${_GEMINI_API_KEY},DATABASE_URL=${_DATABASE_URL},SESSION_SECRET=${_SESSION_SECRET},ADK_INTERNAL_TOKEN=${_ADK_INTERNAL_TOKEN}'
 
 substitutions:
   _CLOUD_SQL_INSTANCE: 'bwanashamba:europe-west1:bwanashamba-db'
+  _GEMINI_API_KEY: ''
+  _DATABASE_URL: ''
+  _SESSION_SECRET: '43mMiALzi_BBQO-XNlxUxZMGd-Vb_TN2NQMxCt_yXdA'
+  _ADK_INTERNAL_TOKEN: 'EUvfBc7SAYU56eOODdnvBis_SCgiNcvrcjDEhyrcX0o'
 
 images:
   - 'gcr.io/$PROJECT_ID/bwanashamba'

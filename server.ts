@@ -900,5 +900,12 @@ Be concise and actionable.`;
 startServer().catch(err => {
   console.error('[startup] FATAL ERROR:', err.message);
   console.error(err.stack);
-  process.exit(1);
+  const port = parseInt(process.env.PORT || "5000");
+  const fallbackApp = express();
+  fallbackApp.get("*", (req, res) => {
+    res.status(503).send(`<h1>BwanaShamba - Starting Up</h1><p>Server is starting. If this persists, check environment variables (DATABASE_URL, GEMINI_API_KEY).</p><p>Error: ${err.message}</p>`);
+  });
+  fallbackApp.listen(port, "0.0.0.0", () => {
+    console.log(`[startup] Fallback server listening on port ${port} due to startup error`);
+  });
 });
