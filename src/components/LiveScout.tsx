@@ -478,6 +478,8 @@ export default function LiveScout() {
         responseModalities: [Modality.AUDIO],
         speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Zephyr" } } },
         systemInstruction: "You are BwanaShamba, a farm supervisor in Malivundo, Pwani, Tanzania helping a farmer with their 5-acre mixed farm growing horticulture crops (tomatoes, onions, peppers, cabbage, spinach, cucumbers, watermelon, eggplant, carrots, lettuce, okra, green beans) and maize. Help identify pests, check irrigation, advise on crop management, harvest timing, and market strategies. You have deep knowledge of all these crops in the Tanzanian coastal climate. IMPORTANT LANGUAGE RULE: Match the user's language exactly. If they speak Kiswahili, respond entirely in Kiswahili. If they speak English, respond in English. Switch immediately when they switch languages.",
+        outputTranscription: {},
+        inputTranscription: {},
       };
 
       const startAudioProcessing = (resolvedSession: any) => {
@@ -585,9 +587,21 @@ export default function LiveScout() {
               if (part.text) {
                 console.log('[LiveVoice] Got text response:', part.text.substring(0, 80));
                 setMessages(prev => [...prev, { role: 'ai', text: part.text }]);
-                voiceMessagesRef.current.push({ role: 'ai', text: part.text });
               }
             }
+          }
+
+          if (message.serverContent?.outputTranscription?.text) {
+            const aiText = message.serverContent.outputTranscription.text;
+            console.log('[LiveVoice] AI transcript:', aiText.substring(0, 80));
+            voiceMessagesRef.current.push({ role: 'ai', text: aiText });
+          }
+
+          if (message.serverContent?.inputTranscription?.text) {
+            const userText = message.serverContent.inputTranscription.text;
+            console.log('[LiveVoice] User transcript:', userText.substring(0, 80));
+            setMessages(prev => [...prev, { role: 'user', text: userText }]);
+            voiceMessagesRef.current.push({ role: 'user', text: userText });
           }
 
           if (message.serverContent?.turnComplete) {

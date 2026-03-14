@@ -746,8 +746,13 @@ Be concise and actionable.`;
       const { conversationId, messages: transcriptMessages } = req.body;
 
       let convId = conversationId;
-      if (!convId) {
-        const title = 'Voice Scout Session — ' + new Date().toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
+      if (convId) {
+        const existing = await dbGet('SELECT id FROM conversations WHERE id = ? AND user_id = ?', convId, userId);
+        if (!existing) {
+          return res.status(403).json({ error: 'Access denied to this conversation' });
+        }
+      } else {
+        const title = '🎙️ Voice Scout — ' + new Date().toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
         const result = await dbRun('INSERT INTO conversations (user_id, title) VALUES (?, ?)', userId, title);
         convId = result.lastInsertRowid;
       }
