@@ -542,6 +542,12 @@ export default function LiveScout() {
           console.log('[LiveVoice] WebSocket opened');
         },
         onmessage: (message: any) => {
+          const msgKeys = Object.keys(message || {});
+          const scKeys = message.serverContent ? Object.keys(message.serverContent) : [];
+          if (!message.serverContent?.modelTurn?.parts?.[0]?.inlineData) {
+            console.log('[LiveVoice] Message keys:', msgKeys.join(','), '| serverContent keys:', scKeys.join(','));
+          }
+
           if (message.setupComplete) {
             console.log('[LiveVoice] Setup complete - session ready');
             sessionReadyRef.current = true;
@@ -585,9 +591,7 @@ export default function LiveScout() {
               }
 
               if (part.text) {
-                console.log('[LiveVoice] Got text response:', part.text.substring(0, 80));
-                setMessages(prev => [...prev, { role: 'ai', text: part.text }]);
-                voiceMessagesRef.current.push({ role: 'ai', text: part.text });
+                console.log('[LiveVoice] Got model text (thinking):', part.text.substring(0, 80));
               }
             }
           }
@@ -595,19 +599,46 @@ export default function LiveScout() {
           if (message.serverContent?.outputTranscription?.text) {
             const aiText = message.serverContent.outputTranscription.text;
             console.log('[LiveVoice] AI transcript:', aiText.substring(0, 80));
+            setMessages(prev => {
+              const last = prev[prev.length - 1];
+              if (last && last.role === 'ai' && last._voiceTranscript) {
+                const updated = [...prev];
+                updated[updated.length - 1] = { role: 'ai', text: last.text + aiText, _voiceTranscript: true } as any;
+                return updated;
+              }
+              return [...prev, { role: 'ai', text: aiText, _voiceTranscript: true } as any];
+            });
             voiceMessagesRef.current.push({ role: 'ai', text: aiText });
           }
 
           if (message.serverContent?.inputTranscription?.text) {
             const userText = message.serverContent.inputTranscription.text;
             console.log('[LiveVoice] User transcript:', userText.substring(0, 80));
-            setMessages(prev => [...prev, { role: 'user', text: userText }]);
+            setMessages(prev => {
+              const last = prev[prev.length - 1];
+              if (last && last.role === 'user' && last._voiceTranscript) {
+                const updated = [...prev];
+                updated[updated.length - 1] = { role: 'user', text: last.text + userText, _voiceTranscript: true } as any;
+                return updated;
+              }
+              return [...prev, { role: 'user', text: userText, _voiceTranscript: true } as any];
+            });
             voiceMessagesRef.current.push({ role: 'user', text: userText });
           }
 
           if (message.serverContent?.turnComplete) {
             console.log('[LiveVoice] Turn complete');
             isAiSpeakingRef.current = false;
+            setMessages(prev => {
+              const last = prev[prev.length - 1];
+              if (last && (last as any)._voiceTranscript) {
+                const updated = [...prev];
+                const cleaned = { role: last.role, text: last.text };
+                updated[updated.length - 1] = cleaned;
+                return updated;
+              }
+              return prev;
+            });
           }
         },
         onerror: (error: any) => {
@@ -630,6 +661,7 @@ export default function LiveScout() {
       };
 
       const LIVE_MODELS = [
+        "gemini-2.0-flash-live-001",
         "gemini-2.5-flash-native-audio-preview-12-2025",
         "gemini-2.5-flash-native-audio-latest",
       ];
