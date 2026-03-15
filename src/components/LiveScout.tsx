@@ -78,6 +78,7 @@ export default function LiveScout() {
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const isCameraActiveRef = useRef(false);
   const speechRecognitionRef = useRef<any>(null);
+  const aiJustFinishedRef = useRef(false);
 
   useEffect(() => { isLiveVoiceRef.current = isLiveVoice; }, [isLiveVoice]);
   useEffect(() => { mediaStreamRef.current = mediaStream; }, [mediaStream]);
@@ -452,9 +453,16 @@ export default function LiveScout() {
             if (event.results[i].isFinal) {
               const transcript = event.results[i][0].transcript.trim();
               if (transcript) {
-                console.log('[LiveVoice] User speech transcript:', transcript);
-                setMessages(prev => [...prev, { role: 'user', text: transcript }]);
-                voiceMessagesRef.current.push({ role: 'user', text: transcript });
+                if (isAiSpeakingRef.current || aiJustFinishedRef.current) {
+                  console.log('[LiveVoice] AI spoken words:', transcript);
+                  setMessages(prev => [...prev, { role: 'ai', text: transcript }]);
+                  voiceMessagesRef.current.push({ role: 'ai', text: transcript });
+                  aiJustFinishedRef.current = false;
+                } else {
+                  console.log('[LiveVoice] User speech:', transcript);
+                  setMessages(prev => [...prev, { role: 'user', text: transcript }]);
+                  voiceMessagesRef.current.push({ role: 'user', text: transcript });
+                }
               }
             }
           }
@@ -465,7 +473,7 @@ export default function LiveScout() {
           }
         };
         recognition.onend = () => {
-          if (isLiveVoiceRef.current && !isAiSpeakingRef.current) {
+          if (isLiveVoiceRef.current) {
             try { recognition.start(); } catch {}
           }
         };
@@ -606,13 +614,8 @@ export default function LiveScout() {
           if (parts) {
             for (const part of parts) {
               if (part.inlineData?.data) {
-                if (!isAiSpeakingRef.current) {
-                  isAiSpeakingRef.current = true;
-                  if (speechRecognitionRef.current) {
-                    try { speechRecognitionRef.current.stop(); } catch {}
-                    console.log('[LiveVoice] Paused speech recognition (AI speaking)');
-                  }
-                }
+                isAiSpeakingRef.current = true;
+                aiJustFinishedRef.current = false;
                 try {
                   const float32Data = base64ToFloat32(part.inlineData.data);
                   const buffer = audioCtx.createBuffer(1, float32Data.length, 24000);
@@ -681,14 +684,10 @@ export default function LiveScout() {
           if (message.serverContent?.turnComplete) {
             console.log('[LiveVoice] Turn complete');
             isAiSpeakingRef.current = false;
+            aiJustFinishedRef.current = true;
             setTimeout(() => {
-              if (isLiveVoiceRef.current && speechRecognitionRef.current) {
-                try {
-                  speechRecognitionRef.current.start();
-                  console.log('[LiveVoice] Resumed speech recognition (AI done)');
-                } catch {}
-              }
-            }, 500);
+              aiJustFinishedRef.current = false;
+            }, 3000);
           }
         },
         onerror: (error: any) => {
