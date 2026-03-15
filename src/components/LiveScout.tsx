@@ -77,6 +77,7 @@ export default function LiveScout() {
   const isLiveVoiceRef = useRef(false);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const isCameraActiveRef = useRef(false);
+  const speechRecognitionRef = useRef<any>(null);
 
   useEffect(() => { isLiveVoiceRef.current = isLiveVoice; }, [isLiveVoice]);
   useEffect(() => { mediaStreamRef.current = mediaStream; }, [mediaStream]);
@@ -439,6 +440,47 @@ export default function LiveScout() {
       isLiveVoiceRef.current = true;
       sessionReadyRef.current = false;
       voiceMessagesRef.current = [];
+
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = false;
+        recognition.lang = 'sw-TZ';
+        recognition.onresult = (event: any) => {
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            if (event.results[i].isFinal) {
+              const transcript = event.results[i][0].transcript.trim();
+              if (transcript) {
+                console.log('[LiveVoice] User speech transcript:', transcript);
+                setMessages(prev => [...prev, { role: 'user', text: transcript }]);
+                voiceMessagesRef.current.push({ role: 'user', text: transcript });
+              }
+            }
+          }
+        };
+        recognition.onerror = (event: any) => {
+          console.log('[LiveVoice] Speech recognition error:', event.error);
+          if (event.error === 'not-allowed') {
+            console.log('[LiveVoice] Speech recognition not allowed, continuing without user transcription');
+          }
+        };
+        recognition.onend = () => {
+          if (isLiveVoiceRef.current) {
+            try { recognition.start(); } catch {}
+          }
+        };
+        try {
+          recognition.start();
+          speechRecognitionRef.current = recognition;
+          console.log('[LiveVoice] Browser speech recognition started');
+        } catch (err) {
+          console.log('[LiveVoice] Could not start speech recognition:', err);
+        }
+      } else {
+        console.log('[LiveVoice] Browser speech recognition not available');
+      }
+
       const sessionRes = await fetch('/api/gemini-session');
       const sessionData = await sessionRes.json();
       if (!sessionRes.ok || !sessionData.apiKey) {
@@ -592,6 +634,15 @@ export default function LiveScout() {
 
               if (part.text) {
                 console.log('[LiveVoice] Got model text (thinking):', part.text.substring(0, 80));
+                const cleaned = part.text
+                  .replace(/\*\*[^*]+\*\*\s*/g, '')
+                  .replace(/^(I'm |I've |I'll |Okay, I|I need to |I should |I have |I want to |I am |Let me |I begin |I began |I started |I registered |I acknowledged |I noted |I confirmed |I crafted |I focused |I worked |I considered |I evaluated |I analyzed |I formulated |I assessed )[^\n.]+(\.|\n)/gm, '')
+                  .trim();
+                if (cleaned && cleaned.length > 10) {
+                  console.log('[LiveVoice] Cleaned AI transcript:', cleaned.substring(0, 80));
+                  setMessages(prev => [...prev, { role: 'ai', text: cleaned }]);
+                  voiceMessagesRef.current.push({ role: 'ai', text: cleaned });
+                }
               }
             }
           }
@@ -661,7 +712,6 @@ export default function LiveScout() {
       };
 
       const LIVE_MODELS = [
-        "gemini-2.0-flash-live-001",
         "gemini-2.5-flash-native-audio-preview-12-2025",
         "gemini-2.5-flash-native-audio-latest",
       ];
@@ -756,6 +806,10 @@ export default function LiveScout() {
     if (sessionRef.current) {
       sessionRef.current.then((session: any) => session.close()).catch(() => {});
       sessionRef.current = null;
+    }
+    if (speechRecognitionRef.current) {
+      try { speechRecognitionRef.current.stop(); } catch {}
+      speechRecognitionRef.current = null;
     }
     setMessages(prev => [...prev, { role: 'system', text: 'Live voice session ended.' }]);
     saveVoiceTranscript();
