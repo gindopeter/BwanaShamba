@@ -452,9 +452,15 @@ export default function LiveScout() {
             if (event.results[i].isFinal) {
               const transcript = event.results[i][0].transcript.trim();
               if (transcript) {
-                console.log('[LiveVoice] User speech transcript:', transcript);
-                setMessages(prev => [...prev, { role: 'user', text: transcript }]);
-                voiceMessagesRef.current.push({ role: 'user', text: transcript });
+                if (isAiSpeakingRef.current) {
+                  console.log('[LiveVoice] AI spoken transcript:', transcript);
+                  setMessages(prev => [...prev, { role: 'ai', text: transcript }]);
+                  voiceMessagesRef.current.push({ role: 'ai', text: transcript });
+                } else {
+                  console.log('[LiveVoice] User speech transcript:', transcript);
+                  setMessages(prev => [...prev, { role: 'user', text: transcript }]);
+                  voiceMessagesRef.current.push({ role: 'user', text: transcript });
+                }
               }
             }
           }
@@ -634,14 +640,9 @@ export default function LiveScout() {
 
               if (part.text) {
                 console.log('[LiveVoice] Got model text (thinking):', part.text.substring(0, 80));
-                const cleaned = part.text
-                  .replace(/\*\*[^*]+\*\*\s*/g, '')
-                  .replace(/^(I'm |I've |I'll |Okay, I|I need to |I should |I have |I want to |I am |Let me |I begin |I began |I started |I registered |I acknowledged |I noted |I confirmed |I crafted |I focused |I worked |I considered |I evaluated |I analyzed |I formulated |I assessed )[^\n.]+(\.|\n)/gm, '')
-                  .trim();
-                if (cleaned && cleaned.length > 10) {
-                  console.log('[LiveVoice] Cleaned AI transcript:', cleaned.substring(0, 80));
-                  setMessages(prev => [...prev, { role: 'ai', text: cleaned }]);
-                  voiceMessagesRef.current.push({ role: 'ai', text: cleaned });
+                const title = part.text.match(/\*\*([^*]+)\*\*/)?.[1] || '';
+                if (title) {
+                  setMessages(prev => [...prev, { role: 'system', text: `AI thinking: ${title}` }]);
                 }
               }
             }
