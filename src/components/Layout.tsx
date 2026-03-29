@@ -1,15 +1,12 @@
 import React, { useState } from 'react';
-import { LayoutDashboard, MessageSquare, Map as MapIcon, Settings, Menu, X, LogOut, BarChart2 } from 'lucide-react';
-import { type Language, t } from '../lib/i18n';
+import { LayoutDashboard, MessageSquare, Map as MapIcon, Settings, Menu, X, LogOut } from 'lucide-react';
 
 interface AuthUser {
   id: number;
-  email: string | null;
-  phone_number?: string | null;
+  email: string;
   first_name: string | null;
   last_name: string | null;
   role: string;
-  language?: string;
 }
 
 interface LayoutProps {
@@ -22,21 +19,13 @@ interface LayoutProps {
 
 export default function Layout({ children, currentView, onNavigate, user, onLogout }: LayoutProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const lang: Language = (user.language as Language) || 'en';
 
   const navItems = [
-    { icon: <LayoutDashboard />, label: lang === 'sw' ? 'Muhtasari' : 'Overview', view: 'dashboard' },
-    { icon: <MessageSquare />, label: t(lang, 'assistant'), view: 'assistant' },
-    { icon: <MapIcon />, label: lang === 'sw' ? 'Ramani' : 'The Farm', view: 'map' },
-    { icon: <BarChart2 />, label: t(lang, 'reports'), view: 'reports' },
-    { icon: <Settings />, label: t(lang, 'settings'), view: 'settings' },
+    { icon: <LayoutDashboard />, label: 'Overview', view: 'dashboard' },
+    { icon: <MessageSquare />, label: 'AI Assistant', view: 'assistant' },
+    { icon: <MapIcon />, label: 'The Farm', view: 'map' },
+    { icon: <Settings />, label: 'Settings', view: 'settings' },
   ];
-
-  const displayName = user.first_name
-    ? `${user.first_name}${user.last_name ? ' ' + user.last_name : ''}`
-    : user.email || user.phone_number || '?';
-
-  const displayEmail = user.email || user.phone_number || '';
 
   return (
     <div className="min-h-screen bg-[#f9f6f1] flex" style={{ fontFamily: "'Lato', system-ui, sans-serif" }}>
@@ -78,7 +67,7 @@ export default function Layout({ children, currentView, onNavigate, user, onLogo
 
         <nav className="flex-1 px-3 pt-4 space-y-0.5">
           {navItems.map((item) => {
-            const active = currentView === item.view || (item.view === 'dashboard' && currentView === 'dashboard');
+            const active = currentView === item.view;
             return (
               <button
                 key={item.view}
@@ -98,11 +87,13 @@ export default function Layout({ children, currentView, onNavigate, user, onLogo
         <div className="p-3 border-t border-white/[0.08] space-y-2">
           <div className="flex items-center gap-2.5 p-2">
             <div className="w-8 h-8 rounded-lg bg-[#035925] flex items-center justify-center text-white text-[10px] font-black shrink-0">
-              {(user.first_name || displayEmail || '?')[0].toUpperCase()}
+              {(user.first_name || user.email || '?')[0].toUpperCase()}
             </div>
             <div className="min-w-0">
-              <p className="text-[11px] font-bold text-white truncate">{displayName}</p>
-              <p className="text-[10px] text-white/30 truncate">{displayEmail}</p>
+              <p className="text-[11px] font-bold text-white truncate">
+                {user.first_name ? `${user.first_name}${user.last_name ? ' ' + user.last_name : ''}` : user.email}
+              </p>
+              <p className="text-[10px] text-white/30 truncate">{user.email}</p>
             </div>
           </div>
           <button
@@ -110,7 +101,7 @@ export default function Layout({ children, currentView, onNavigate, user, onLogo
             className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-[12px] font-medium text-red-400/70 hover:text-red-400 hover:bg-red-500/10 transition-all"
           >
             <LogOut size={14} />
-            {lang === 'sw' ? 'Toka' : 'Log Out'}
+            Log Out
           </button>
         </div>
       </aside>
